@@ -9,7 +9,7 @@ begin
 	"Makes me say hello to the user."
 
 	| msg button |
-	msg := 'Hello World!!'.
+	msg := 'Hallo Bernhard!!'.
 	button := '#sayHello' asJQuery.
 	button click: [button after: '<p>' , msg , '</p>'].
 	Counter new appendToJQuery: 'body' asJQuery

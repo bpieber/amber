@@ -68,19 +68,19 @@ identityHash
 !
 
 instVarAt: aSymbol
-	| varname |
-	varname := aSymbol asString.
-	<return self['@'+varname]>
+	<return self['@'+aSymbol._asString()]>
 !
 
 instVarAt: aSymbol put: anObject
-	| varname |
-	varname := aSymbol asString.
-	<self['@' + varname] = anObject>
+	<self['@' + aSymbol._asString()] = anObject>
 !
 
 size
 	self error: 'Object not indexable'
+!
+
+value
+	<return self.valueOf()>
 !
 
 yourself
@@ -129,6 +129,12 @@ asJavascript
 
 asString
 	^self printString
+!
+
+test
+	| a |
+    a := 1.
+    self halt
 ! !
 
 !Object methodsFor: 'copying'!
@@ -196,9 +202,12 @@ subclassResponsibility
 	self error: 'This method is a responsibility of a subclass'
 !
 
+throw: anObject
+	< throw anObject >
+!
+
 try: aBlock catch: anotherBlock
-	<try{result = aBlock()} catch(e) {result = anotherBlock(e)};
-	return result;>
+	<try{return aBlock()} catch(e) {return anotherBlock(e)}>
 ! !
 
 !Object methodsFor: 'initialization'!
@@ -221,9 +230,7 @@ perform: aSymbol
 !
 
 perform: aSymbol withArguments: aCollection
-	| selector |
-	selector := aSymbol asSelector.
-	<return smalltalk.send(self, selector, aCollection)>
+	<return smalltalk.send(self, aSymbol._asSelector(), aCollection)>
 ! !
 
 !Object methodsFor: 'printing'!
@@ -274,6 +281,10 @@ ifNotNil: aBlock
 ifNotNil: aBlock ifNil: anotherBlock
 	"inlined in the Compiler"
 	^aBlock value
+!
+
+isBoolean
+	^ false
 !
 
 isClass
@@ -340,8 +351,12 @@ Boolean instances are weither `true` or `false`.!
 !Boolean methodsFor: 'comparing'!
 
 = aBoolean
-	aBoolean class = self class ifFalse: [^false].
-	<return Boolean(self == true) == aBoolean>
+	<
+    	if(!! aBoolean._isBoolean || !! aBoolean._isBoolean()) {
+        	return false;
+        }
+    	return Boolean(self == true) == aBoolean
+    >
 !
 
 == aBoolean
@@ -432,6 +447,12 @@ shallowCopy
 
 printString
 	<return self.toString()>
+! !
+
+!Boolean methodsFor: 'testing'!
+
+isBoolean
+	^ true
 ! !
 
 Object subclass: #Date
@@ -648,15 +669,20 @@ __Note:__ For keyword-based messages, only the first keyword is kept: `window fo
 !JSObjectProxy methodsFor: 'accessing'!
 
 at: aSymbol
-	| attr |
-	attr := aSymbol asString.
-	<return self['@jsObject'][attr]>
+	<return self['@jsObject'][aSymbol._asString()]>
+!
+
+at: aSymbol ifAbsent: aBlock
+	"return the aSymbol property or evaluate aBlock if the property is not defined on the object"
+	<
+    	var obj = self['@jsObject'],
+        	symbol = aSymbol._asString();
+		return symbol in obj ? obj[symbol] : aBlock();
+	>
 !
 
 at: aSymbol put: anObject
-	| attr |
-	attr := aSymbol asString.
-	<self['@jsObject'][attr] = anObject>
+	<self['@jsObject'][aSymbol._asString()] = anObject>
 !
 
 jsObject
@@ -665,18 +691,46 @@ jsObject
 
 jsObject: aJSObject
 	jsObject := aJSObject
+!
+
+value
+	"if attribute 'value' exists on the JS object return it,
+    otherwise return the result of Object>>value."
+	^ self at: 'value' ifAbsent: [super value]
+! !
+
+!JSObjectProxy methodsFor: 'enumerating'!
+
+keysAndValuesDo: aBlock
+	<
+    	var o = self['@jsObject'];
+    	for(var i in o) {
+			aBlock(i, o[i]);
+		}
+    >
 ! !
 
 !JSObjectProxy methodsFor: 'proxy'!
 
+addObjectVariablesTo: aDictionary
+	<
+    	for(var i in self['@jsObject']) {
+			aDictionary._at_put_(i, self['@jsObject'][i]);
+		}
+    >
+!
+
 doesNotUnderstand: aMessage
-	| obj selector jsSelector arguments |
-	obj := self jsObject.
-	selector := aMessage selector.
-	jsSelector := selector asJavaScriptSelector.
-	arguments := aMessage arguments.
-	<if(obj[jsSelector] !!= undefined) {return smalltalk.send(obj, jsSelector, arguments)}>.
-	super doesNotUnderstand: aMessage
+    
+   ^ (self canForwardMessage: aMessage) 
+    	ifTrue: [ self forwardMessage: aMessage ]
+        ifFalse: [ ^ super doesNotUnderstand: aMessage ]
+!
+
+forwardMessage: aMessage
+	<
+    	return smalltalk.send(self._jsObject(), aMessage._selector()._asJavaScriptSelector(), aMessage._arguments());
+    >
 !
 
 inspectOn: anInspector
@@ -684,14 +738,25 @@ inspectOn: anInspector
 	variables := Dictionary new.
 	variables at: '#self' put: self jsObject.
 	anInspector setLabel: self printString.
-	<for(var i in self['@jsObject']) {
-		variables._at_put_(i, self['@jsObject'][i]);
-	}>.
+	self addObjectVariablesTo: variables.
 	anInspector setVariables: variables
 !
 
 printString
 	^self jsObject toString
+! !
+
+!JSObjectProxy methodsFor: 'testing'!
+
+canForwardMessage: aMessage
+	<
+    	var jsSelector = aMessage._selector()._asJavaScriptSelector();
+    	if(jsSelector in self._jsObject()) {
+        	return true
+        } else {
+        	return false;
+        }
+    >
 ! !
 
 !JSObjectProxy class methodsFor: 'instance creation'!
@@ -752,6 +817,14 @@ identityHash
 	<return self % aNumber>
 !
 
+\\ aNumber
+	<return self % aNumber>
+!
+
+abs
+	<return Math.abs(self);>
+!
+
 max: aNumber
 	<return Math.max(self, aNumber);>
 !
@@ -785,8 +858,12 @@ squared
 !
 
 = aNumber
-	aNumber isNumber ifFalse: [^false]. 
-	<return Number(self) == aNumber>
+	<
+    	if(!! aNumber._isNumber || !! aNumber._isNumber()) {
+        	return false;
+        }
+    	return Number(self) == aNumber
+    >
 !
 
 > aNumber
@@ -865,13 +942,13 @@ to: stop by: step
 !
 
 truncated
-|result|
-
-    self >= 0 
-        ifTrue: [<result = Math.floor(self);>]
-        ifFalse: [<result = (Math.floor(self * (-1)) * (-1));>].
-
-    ^ result
+	<
+    	if(self >>= 0) {
+        	return Math.floor(self);
+        } else {
+        	return Math.floor(self * (-1)) * (-1);
+        };
+    >
 !
 
 | aNumber
@@ -891,8 +968,7 @@ deepCopy
 !Number methodsFor: 'enumerating'!
 
 timesRepeat: aBlock
-	| integer count |
-	integer := self truncated.
+	| count |
 	count := 1.
 	[count > self] whileFalse: [
 	    aBlock value.
@@ -962,20 +1038,28 @@ positive
 	^ self >= 0
 ! !
 
-!Number methodsFor: 'timeouts/intervals'!
-
-clearInterval
-	<clearInterval(Number(self))>
-!
-
-clearTimeout
-	<clearTimeout(Number(self))>
-! !
-
 !Number class methodsFor: 'instance creation'!
 
 pi
 	<return Math.PI>
+! !
+
+Object subclass: #Organizer
+	instanceVariableNames: ''
+	package: 'Kernel-Objects'!
+
+!Organizer methodsFor: 'accessing'!
+
+addElement: anObject
+	<self.elements.addElement(anObject)>
+!
+
+elements
+	^ (self basicAt: 'elements') copy
+!
+
+removeElement: anObject
+	<self.elements.removeElement(anObject)>
 ! !
 
 Object subclass: #Package
@@ -1035,26 +1119,24 @@ name: aString
 	<self.pkgName = aString>
 !
 
-properties
-	^Smalltalk current readJSObject: (self basicAt: 'properties')
+organization
+	^ self basicAt: 'organization'
 !
 
-properties: aDict
-	"We store it as a javascript object."
-	
-	| object |
-	<object = {};>.
-	aDict keysAndValuesDo: [:key :value |
-		<object[key] = value>.
-	].
-	<return self.properties = object>
+properties
+	^Smalltalk current readJSObject: (self basicAt: 'properties')
 ! !
 
 !Package methodsFor: 'classes'!
 
 classes
-	"We need to do a reverse scan."
-	^Smalltalk current classes select: [:c | c package == self]
+	^ self organization elements
+!
+
+setupClasses
+	self classes
+		do: [ :each | ClassBuilder new setupClass: each ];
+		do: [ :each | each initialize ]
 !
 
 sortedClasses
@@ -1102,7 +1184,28 @@ propertyAt: key put: value
 
 Package class instanceVariableNames: 'defaultCommitPathJs defaultCommitPathSt'!
 
+!Package class methodsFor: 'accessing'!
+
+named: aPackageName
+
+	^Smalltalk current packageAt: aPackageName
+!
+
+named: aPackageName ifAbsent: aBlock
+
+	^Smalltalk current packageAt: aPackageName ifAbsent: aBlock
+! !
+
 !Package class methodsFor: 'commit paths'!
+
+commitPathsFromLoader
+    <
+    var cp = smalltalk['@@commitPath'];
+    if (!!cp) return;
+    if (cp.js) self._defaultCommitPathJs_(cp.js);
+    if (cp.st) self._defaultCommitPathSt_(cp.st);
+    >
+!
 
 defaultCommitPathJs
 	^ defaultCommitPathJs ifNil: [ defaultCommitPathJs := 'js']
@@ -1125,39 +1228,24 @@ resetCommitPaths
         defaultCommitPathSt := nil.
 ! !
 
-!Package class methodsFor: 'loading-storing'!
+!Package class methodsFor: 'initialization'!
 
-commitToLocalStorage: aPackageName
-	| key sourceCode |
-	key := 'smalltalk.packages.' , aPackageName.
-	sourceCode := Exporter new exportPackage: aPackageName.
-	<localStorage[key] = escape(sourceCode)>
-!
+initialize
+	super initialize.
+    self commitPathsFromLoader
+! !
+
+!Package class methodsFor: 'loading-storing'!
 
 fetch: aPackageName
 	self fetch: aPackageName prefix: self defaultCommitPathJs, '/'
 !
 
 fetch: aPackageName prefix: aPrefix
-	jQuery getScript: (aPrefix , aPackageName , '.js') onSuccess: [ Package init: aPackageName ]
-!
-
-init: aPackageName
-	(smalltalk classes select: [ :each | <each.pkg.pkgName == aPackageName> ])
-		do: [ :each | <smalltalk.init(each)> ];
-		do: [ :each | each initialize ]
-! !
-
-!Package class methodsFor: 'not yet classified'!
-
-named: aPackageName
-
-	^Smalltalk current packageAt: aPackageName
-!
-
-named: aPackageName ifAbsent: aBlock
-
-	^Smalltalk current packageAt: aPackageName ifAbsent: aBlock
+	jQuery 
+    	getScript: (aPrefix , aPackageName , '.js') 
+        onSuccess: [ 
+        	(Package named: aPackageName) setupClasses ]
 ! !
 
 !Package class methodsFor: 'sorting'!
@@ -1353,37 +1441,14 @@ It requires the `Compiler` package and the `js/parser.js` parser file in order t
 
 !Smalltalk methodsFor: 'accessing'!
 
-at: aString
-	<return self[aString]>
-!
-
-basicParse: aString
-	<return smalltalk.parser.parse(aString)>
-!
-
-classes
-	<return self.classes()>
+at: aSymbol
+	<return self[aSymbol._asString()]>
 !
 
 parse: aString
 	| result | 
 	self try: [result := self basicParse: aString] catch: [:ex | (self parseError: ex parsing: aString) signal].
 	^result
-!
-
-parseError: anException parsing: aString
-	| row col message lines badLine code |
-	<row = anException.line;
-	col = anException.column;
-	message = anException.message;>.
-	lines := aString lines.
-	badLine := lines at: row.
-	badLine := (badLine copyFrom: 1 to: col - 1), ' ===>', (badLine copyFrom:  col to: badLine size).
-	lines at: row put: badLine.
-	code := String streamContents: [:s |
-                  lines withIndexDo: [:l :i |
-                     s nextPutAll: i asString, ': ', l, String lf]].
-	^ Error new messageText: ('Parse error on line ' , row , ' column ' , col , ' : ' , message , ' Below is code with line numbers and ===> marker inserted:' , String lf, code)
 !
 
 readJSObject: anObject
@@ -1393,26 +1458,65 @@ readJSObject: anObject
 reservedWords
 	"JavaScript reserved words"
 	<return self.reservedWords>
-!
-
-send: aSelector to: anObject arguments: aCollection
-	| selector |
-	selector := aSelector asString asSelector.
-	<self.send(anObject, selector, aCollection)>
 ! !
 
 !Smalltalk methodsFor: 'classes'!
 
+classes
+	<return self.classes()>
+!
+
+deleteClass: aClass
+	"Deletes a class by deleting its binding only. Use #removeClass instead"
+    
+	<self.removeClass(aClass)>
+!
+
 removeClass: aClass
 	aClass isMetaclass ifTrue: [self error: aClass asString, ' is a Metaclass and cannot be removed!!'].
+    
 	aClass methodDictionary values do: [:each |
 		aClass removeCompiledMethod: each].
+        
 	aClass class methodDictionary values do: [:each |
 		aClass class removeCompiledMethod: each].
-	self basicDelete: aClass name
+        
+	self deleteClass: aClass.
+    
+    SystemAnnouncer current
+    	announce: (ClassRemoved new
+        	theClass: aClass;
+            yourself)
+! !
+
+!Smalltalk methodsFor: 'error handling'!
+
+asSmalltalkException: anObject
+	"A JavaScript exception may be thrown.
+    We then need to convert it back to a Smalltalk object"
+    
+    ^ ((self isSmalltalkObject: anObject) and: [ anObject isKindOf: Error ])
+    	ifTrue: [ anObject ]
+      	ifFalse: [ JavaScriptException on: anObject ]
+!
+
+parseError: anException parsing: aString
+	^ ParseError new messageText: 'Parse error on line ', (anException basicAt: 'line') ,' column ' , (anException basicAt: 'column') ,' : Unexpected character ', (anException basicAt: 'found')
 ! !
 
 !Smalltalk methodsFor: 'packages'!
+
+createPackage: packageName
+	"Create and bind a new package with given name and return it."
+       <return smalltalk.addPackage(packageName)>
+!
+
+deletePackage: packageName
+	"Deletes a package by deleting its binding, but does not check if it contains classes etc.
+	To remove a package, use #removePackage instead."
+
+       <delete smalltalk.packages[packageName]>
+!
 
 packageAt: packageName
        <return self.packages[packageName]>
@@ -1426,6 +1530,10 @@ packages
 	"Return all Package instances in the system."
 
 	<return self.packages.all()>
+!
+
+pseudoVariableNames
+	^ #('self' 'super' 'nil' 'true' 'false' 'thisContext')
 !
 
 removePackage: packageName
@@ -1444,35 +1552,32 @@ renamePackage: packageName to: newName
 	| pkg |
 	pkg := self packageAt: packageName ifAbsent: [self error: 'Missing package: ', packageName].
 	(self packageAt: newName) ifNotNil: [self error: 'Already exists a package called: ', newName].
-	<smalltalk.packages[newName] = smalltalk.packages[packageName]>.
+    (self basicAt: 'packages') at: newName put: pkg.
 	pkg name: newName.
 	self deletePackage: packageName.
 ! !
 
 !Smalltalk methodsFor: 'private'!
 
-createPackage: packageName
-	"Create and bind a new package with given name and return it."
-
-      <return smalltalk.addPackage(packageName, nil)>
+basicParse: aString
+	<return smalltalk.parser.parse(aString)>
 !
 
 createPackage: packageName properties: aDict
-	"Create and bind a new package with given name and return it."
+    "Needed to import .st files: they begin with this call."
+    self deprecatedAPI.
+    
+    aDict isEmpty ifFalse: [ self error: 'createPackage:properties: called with nonempty properties' ].
+    ^ self createPackage: packageName
+! !
 
-	| object |
-	<object = {};>.
-	aDict keysAndValuesDo: [:key :value |
-		<object[key] = value>.
-	].
-       <return smalltalk.addPackage(packageName, object)>
-!
+!Smalltalk methodsFor: 'testing'!
 
-deletePackage: packageName
-	"Deletes a package by deleting its binding, but does not check if it contains classes etc.
-	To remove a package, use #removePackage instead."
-
-       <delete smalltalk.packages[packageName]>
+isSmalltalkObject: anObject
+	"Consider anObject a Smalltalk object if it has a 'klass' property.
+    Note that this may be unaccurate"
+    
+    <return typeof anObject.klass !!== 'undefined'>
 ! !
 
 Smalltalk class instanceVariableNames: 'current'!
@@ -1481,6 +1586,42 @@ Smalltalk class instanceVariableNames: 'current'!
 
 current
 	<return smalltalk>
+! !
+
+Object subclass: #Timeout
+	instanceVariableNames: 'rawTimeout'
+	package: 'Kernel-Objects'!
+!Timeout commentStamp!
+I am wrapping the returns from set{Timeout,Interval}.
+
+Number suffices in browsers, but node.js returns an object.!
+
+!Timeout methodsFor: 'accessing'!
+
+rawTimeout: anObject
+	rawTimeout := anObject
+! !
+
+!Timeout methodsFor: 'timeout/interval'!
+
+clearInterval
+	<
+    	var interval = self["@rawTimeout"];
+		clearInterval(interval);
+    >
+!
+
+clearTimeout
+	<
+    	var timeout = self["@rawTimeout"];
+		clearTimeout(timeout);
+    >
+! !
+
+!Timeout class methodsFor: 'instance creation'!
+
+on: anObject
+	^self new rawTimeout: anObject; yourself
 ! !
 
 Object subclass: #UndefinedObject
@@ -1505,7 +1646,7 @@ subclass: aString instanceVariableNames: aString2 category: aString3
 
 subclass: aString instanceVariableNames: aString2 package: aString3
 	^ClassBuilder new
-	    superclass: self subclass: aString instanceVariableNames: aString2 package: aString3
+	    superclass: self subclass: aString asString instanceVariableNames: aString2 package: aString3
 ! !
 
 !UndefinedObject methodsFor: 'converting'!

@@ -6,9 +6,8 @@ smalltalk.method({
 selector: "clear",
 fn: function (){
 var self=this;
-
-return self;}
-}),
+return smalltalk.withContext(function($ctx1) { return self}, function($ctx1) {$ctx1.fill(self,"clear",{}, smalltalk.ConsoleTranscript)})},
+messageSends: []}),
 smalltalk.ConsoleTranscript);
 
 smalltalk.addMethod(
@@ -17,9 +16,8 @@ smalltalk.method({
 selector: "cr",
 fn: function (){
 var self=this;
-
-return self;}
-}),
+return smalltalk.withContext(function($ctx1) { return self}, function($ctx1) {$ctx1.fill(self,"cr",{}, smalltalk.ConsoleTranscript)})},
+messageSends: []}),
 smalltalk.ConsoleTranscript);
 
 smalltalk.addMethod(
@@ -28,9 +26,8 @@ smalltalk.method({
 selector: "open",
 fn: function (){
 var self=this;
-
-return self;}
-}),
+return smalltalk.withContext(function($ctx1) { return self}, function($ctx1) {$ctx1.fill(self,"open",{}, smalltalk.ConsoleTranscript)})},
+messageSends: []}),
 smalltalk.ConsoleTranscript);
 
 smalltalk.addMethod(
@@ -39,11 +36,9 @@ smalltalk.method({
 selector: "show:",
 fn: function (anObject){
 var self=this;
-var string=nil;
-(string=smalltalk.send(anObject, "_asString", []));
-console.log(String(string));
-return self;}
-}),
+return smalltalk.withContext(function($ctx1) { console.log(String(string._asString()));
+return self}, function($ctx1) {$ctx1.fill(self,"show:",{anObject:anObject}, smalltalk.ConsoleTranscript)})},
+messageSends: []}),
 smalltalk.ConsoleTranscript);
 
 
@@ -53,9 +48,9 @@ smalltalk.method({
 selector: "initialize",
 fn: function (){
 var self=this;
-smalltalk.send((smalltalk.Transcript || Transcript), "_register_", [smalltalk.send(self, "_new", [])]);
-return self;}
-}),
+return smalltalk.withContext(function($ctx1) { _st((smalltalk.Transcript || Transcript))._register_(_st(self)._new());
+return self}, function($ctx1) {$ctx1.fill(self,"initialize",{}, smalltalk.ConsoleTranscript.klass)})},
+messageSends: ["register:", "new"]}),
 smalltalk.ConsoleTranscript.klass);
 
 
@@ -68,9 +63,9 @@ smalltalk.method({
 selector: "clear",
 fn: function (){
 var self=this;
-smalltalk.send(smalltalk.send(self, "_current", []), "_clear", []);
-return self;}
-}),
+return smalltalk.withContext(function($ctx1) { _st(_st(self)._current())._clear();
+return self}, function($ctx1) {$ctx1.fill(self,"clear",{}, smalltalk.Transcript.klass)})},
+messageSends: ["clear", "current"]}),
 smalltalk.Transcript.klass);
 
 smalltalk.addMethod(
@@ -79,9 +74,9 @@ smalltalk.method({
 selector: "cr",
 fn: function (){
 var self=this;
-smalltalk.send(smalltalk.send(self, "_current", []), "_show_", [smalltalk.send((smalltalk.String || String), "_cr", [])]);
-return self;}
-}),
+return smalltalk.withContext(function($ctx1) { _st(_st(self)._current())._show_(_st((smalltalk.String || String))._cr());
+return self}, function($ctx1) {$ctx1.fill(self,"cr",{}, smalltalk.Transcript.klass)})},
+messageSends: ["show:", "cr", "current"]}),
 smalltalk.Transcript.klass);
 
 smalltalk.addMethod(
@@ -90,9 +85,11 @@ smalltalk.method({
 selector: "current",
 fn: function (){
 var self=this;
-return self['@current'];
-return self;}
-}),
+return smalltalk.withContext(function($ctx1) { var $1;
+$1=self["@current"];
+return $1;
+}, function($ctx1) {$ctx1.fill(self,"current",{}, smalltalk.Transcript.klass)})},
+messageSends: []}),
 smalltalk.Transcript.klass);
 
 smalltalk.addMethod(
@@ -101,9 +98,9 @@ smalltalk.method({
 selector: "new",
 fn: function (){
 var self=this;
-smalltalk.send(self, "_shouldNotImplement", []);
-return self;}
-}),
+return smalltalk.withContext(function($ctx1) { _st(self)._shouldNotImplement();
+return self}, function($ctx1) {$ctx1.fill(self,"new",{}, smalltalk.Transcript.klass)})},
+messageSends: ["shouldNotImplement"]}),
 smalltalk.Transcript.klass);
 
 smalltalk.addMethod(
@@ -112,9 +109,9 @@ smalltalk.method({
 selector: "open",
 fn: function (){
 var self=this;
-smalltalk.send(smalltalk.send(self, "_current", []), "_open", []);
-return self;}
-}),
+return smalltalk.withContext(function($ctx1) { _st(_st(self)._current())._open();
+return self}, function($ctx1) {$ctx1.fill(self,"open",{}, smalltalk.Transcript.klass)})},
+messageSends: ["open", "current"]}),
 smalltalk.Transcript.klass);
 
 smalltalk.addMethod(
@@ -123,9 +120,9 @@ smalltalk.method({
 selector: "register:",
 fn: function (aTranscript){
 var self=this;
-(self['@current']=aTranscript);
-return self;}
-}),
+return smalltalk.withContext(function($ctx1) { self["@current"]=aTranscript;
+return self}, function($ctx1) {$ctx1.fill(self,"register:",{aTranscript:aTranscript}, smalltalk.Transcript.klass)})},
+messageSends: []}),
 smalltalk.Transcript.klass);
 
 smalltalk.addMethod(
@@ -134,9 +131,9 @@ smalltalk.method({
 selector: "show:",
 fn: function (anObject){
 var self=this;
-smalltalk.send(smalltalk.send(self, "_current", []), "_show_", [anObject]);
-return self;}
-}),
+return smalltalk.withContext(function($ctx1) { _st(_st(self)._current())._show_(anObject);
+return self}, function($ctx1) {$ctx1.fill(self,"show:",{anObject:anObject}, smalltalk.Transcript.klass)})},
+messageSends: ["show:", "current"]}),
 smalltalk.Transcript.klass);
 
 

@@ -27,16 +27,22 @@ value: aValue
 	^self class = anAssociation class and: [
 	    self key = anAssociation key and: [
 		self value = anAssociation value]]
+! !
+
+!Association methodsFor: 'printing'!
+
+printString
+	"print the contents of the Association into a string and return the string"
+	^String streamContents: [:aStream |
+		self storeOn: aStream]
 !
 
 storeOn: aStream
-	"Store in the format (key->value)"
+	"Store in the format: key->value"
 
-	"aStream nextPutAll: '('."
 	key storeOn: aStream.
 	aStream nextPutAll: '->'.
 	value storeOn: aStream.
-	"aStream nextPutAll: ')'"
 ! !
 
 !Association class methodsFor: 'instance creation'!
@@ -53,6 +59,15 @@ Object subclass: #Collection
 	package: 'Kernel-Collections'!
 
 !Collection methodsFor: 'accessing'!
+
+occurrencesOf: anObject 
+	"Answer how many of the receiver's elements are equal to anObject."
+
+	| tally |
+	tally := 0.
+	self do: [:each | anObject = each ifTrue: [tally := tally + 1]].
+	^tally
+!
 
 readStream
 	^self stream
@@ -138,11 +153,11 @@ copyWithoutAll: aCollection
 !Collection methodsFor: 'enumerating'!
 
 collect: aBlock
-	| newCollection |
-	newCollection := self class new.
-	self do: [:each |
-	    newCollection add: (aBlock value: each)].
-	^newCollection
+	| stream |
+	stream := self class new writeStream.
+	self do: [ :each |
+		stream nextPut: (aBlock value: each) ].
+	^stream contents
 !
 
 detect: aBlock
@@ -180,6 +195,22 @@ inject: anObject into: aBlock
 	^result
 !
 
+intersection: aCollection
+	"Answer the set theoretic intersection of two collections."
+
+	| set outputSet |
+	
+	set := self asSet.
+	outputSet := Set new.
+	
+	aCollection do: [ :each |
+		((set includes: each) and: [(outputSet includes: each) not])
+			ifTrue: [ 
+				outputSet add: each]].
+		
+	^ self class withAll: outputSet asArray
+!
+
 reject: aBlock
 	^self select: [:each | (aBlock value: each) = false]
 !
@@ -199,6 +230,18 @@ errorNotFound
 	self error: 'Object is not in the collection'
 ! !
 
+!Collection methodsFor: 'printing'!
+
+printString
+	"print the contents of the Collection into a string and return it"
+	^String streamContents: [:aStream |
+		aStream
+			nextPutAll: super printString, ' ('.
+		self do: [:each | aStream nextPutAll: each printString]
+			separatedBy: [aStream nextPutAll: ' '].
+		aStream nextPutAll: ')']
+! !
+
 !Collection methodsFor: 'testing'!
 
 ifEmpty: aBlock
@@ -214,13 +257,9 @@ ifNotEmpty: aBlock
 !
 
 includes: anObject
-	<
-		var i = self.length;
-		while (i--) {
-			if (smalltalk.send(self[i], "__eq", [anObject])) {return true;}	
-		}
-		return false
-	>
+	| sentinel |
+    sentinel := Object new.
+    ^(self detect: [ :each | each = anObject] ifNone: [ sentinel ]) ~= sentinel
 !
 
 isEmpty
@@ -304,13 +343,21 @@ at: aKey ifAbsentPut: aBlock
 !
 
 at: aKey ifPresent: aBlock
-	^(self basicAt: aKey) ifNotNil: [aBlock value: (self at: aKey)]
+	"Lookup the given key in the receiver. 
+	If it is present, answer the value of evaluating the given block with the value associated with the key. 
+	Otherwise, answer nil."
+	^(self includesKey: aKey)
+		ifTrue: [ aBlock value: (self at: aKey) ]
+		ifFalse: [ nil ]
 !
 
 at: aKey ifPresent: aBlock ifAbsent: anotherBlock
-	^(self basicAt: aKey)
-	    ifNil: anotherBlock
-	    ifNotNil: [aBlock value: (self at: aKey)]
+	"Lookup the given key in the receiver. 
+	If it is present, answer the value of evaluating the oneArgBlock with the value associated with the key, 
+	otherwise answer the value of absentBlock."
+	^(self includesKey: aKey)
+		ifTrue: [ aBlock value: (self at: aKey) ]
+		ifFalse: anotherBlock
 !
 
 at: aKey put: aValue
@@ -453,18 +500,13 @@ select: aBlock
 !HashedCollection methodsFor: 'printing'!
 
 printString
-	^String streamContents: [:aStream|  
-		aStream 
-			nextPutAll: super printString;
-			nextPutAll: '('.
-				self associations 
-					do: [:anAssociation|  
-						aStream 
-							nextPutAll: anAssociation key printString;
-								nextPutAll: ' -> ';
-								nextPutAll: anAssociation value printString]
-							separatedBy: [aStream nextPutAll: ' , '].
-						aStream nextPutAll: ')']
+	"print the contents of the HashedCollection into a string and return the string"
+	^String streamContents: [:aStream |
+		aStream nextPutAll: 'a ', self class name, '('.
+		self associations
+			do: [:each | each storeOn: aStream]
+			separatedBy: [ aStream nextPutAll: ' , '].
+		aStream nextPutAll: ')']
 !
 
 storeOn: aStream
@@ -524,8 +566,20 @@ at: aKey put: aValue
 	>
 !
 
+keyAtValue: anObject
+
+	^ (self associations 
+    	detect:[:k :v| v == anObject] 
+    	ifNone:[self error: 'Not found']) key
+!
+
 keys
 	^keys copy
+!
+
+valueAt: anObject
+
+	^ self associationsDo:2
 !
 
 values
@@ -624,9 +678,9 @@ indexOf: anObject
 
 indexOf: anObject ifAbsent: aBlock
 	<
-		for(var i=0;i<self.length;i++){
+		for(var i=0;i<self.length;i++) {
 			if(self[i].__eq(anObject)) {return i+1}
-		}
+		};
 		return aBlock();
 	>
 !
@@ -718,17 +772,10 @@ withIndexDo: aBlock
 	<for(var i=0;i<self.length;i++){aBlock(self[i], i+1);}>
 ! !
 
-!SequenceableCollection methodsFor: 'printing'!
+!SequenceableCollection methodsFor: 'testing'!
 
-printString
-	| str |
-	str := '' writeStream.
-	str nextPutAll: super printString, ' ('.
-	self 
-		do: [:each | str nextPutAll: each printString]
-		separatedBy: [str nextPutAll: ' '].
-	str nextPutAll: ')'.
-	^str contents
+includes: anObject
+	^(self indexOf: anObject ifAbsent: [nil]) notNil
 ! !
 
 SequenceableCollection subclass: #Array
@@ -758,14 +805,15 @@ add: anObject
 	<self.push(anObject); return anObject;>
 !
 
-remove: anObject
+remove: anObject ifAbsent: aBlock
 	<
 		for(var i=0;i<self.length;i++) {
 			if(self[i] == anObject) {
 				self.splice(i,1);
-				break;
+				return self;
 			}
-		}
+		};
+        aBlock._value();
 	>
 !
 
@@ -837,10 +885,12 @@ with: anObject with: anObject2 with: anObject3
 !
 
 withAll: aCollection
-	| instance |
+	| instance index |
+	index := 1.
 	instance := self new: aCollection size.
-	aCollection withIndexDo: [:each :index  |
-		instance at: index put: each].
+	aCollection do: [:each  |
+		instance at: index put: each.
+		index := index + 1].
 	^instance
 ! !
 
@@ -921,7 +971,7 @@ asciiValue
 !
 
 at: anIndex ifAbsent: aBlock
-	<return self[anIndex - 1] || aBlock()>
+	<return String(self).charAt(anIndex - 1) || aBlock()>
 !
 
 escaped
@@ -947,8 +997,12 @@ unescaped
 !
 
 = aString
-	aString class = self class ifFalse: [^false].
-	<return String(self) === String(aString)>
+	<
+    	if(!! aString._isString || !! aString._isString()) {
+        	return false;
+        }
+    	return String(self) === String(aString)
+    >
 !
 
 == aString
@@ -990,22 +1044,12 @@ asNumber
 	<return Number(self)>
 !
 
-asSelector
-	"If you change this method, change smalltalk.convertSelector too (see js/boot.js file)"
+asRegexp
+	^ RegularExpression fromString: self
+!
 
-	| selector |
-	selector := '_', self.
-	selector := selector replace: ':' with: '_'.
-	selector := selector replace: '[+]' with: '_plus'.
-	selector := selector replace: '-' with: '_minus'.
-	selector := selector replace: '[*]' with: '_star'.
-	selector := selector replace: '[/]' with: '_slash'.
-	selector := selector replace: '>' with: '_gt'.
-	selector := selector replace: '<' with: '_lt'.
-	selector := selector replace: '=' with: '_eq'.
-	selector := selector replace: ',' with: '_comma'.
-	selector := selector replace: '[@]' with: '_at'.
-	^selector
+asSelector
+	<return smalltalk.selector(self)>
 !
 
 asString
@@ -1044,6 +1088,16 @@ deepCopy
 
 shallowCopy
 	^self class fromString: self
+! !
+
+!String methodsFor: 'enumerating'!
+
+do: aBlock
+	<for(var i=0;i<self.length;i++){aBlock(self.charAt(i));}>
+!
+
+withIndexDo: aBlock
+	<for(var i=0;i<self.length;i++){aBlock(self.charAt(i), i+1);}>
 ! !
 
 !String methodsFor: 'printing'!
@@ -1210,6 +1264,10 @@ tab
 
 !String class methodsFor: 'instance creation'!
 
+fromCharCode: anInteger
+	<return String.fromCharCode(anInteger)>
+!
+
 fromString: aString
 	    <return new self.fn(aString)>
 !
@@ -1270,7 +1328,7 @@ asJSON
 !
 
 asJavascript
-	^'smalltalk.symbolFor("', self asString, '")'
+	^'smalltalk.symbolFor(', self asString asJavascript, ')'
 !
 
 asSelector
@@ -1279,6 +1337,10 @@ asSelector
 
 asString
 	<return self.value>
+!
+
+asSuperSelector
+	^self asString asSuperSelector
 !
 
 asSymbol
@@ -1297,6 +1359,34 @@ deepCopy
 
 shallowCopy
 	^self
+! !
+
+!Symbol methodsFor: 'enumerating'!
+
+collect: aBlock
+	^ (self asString collect: aBlock) asSymbol
+!
+
+detect: aBlock
+	^ self asString detect: aBlock
+!
+
+do: aBlock
+	self asString do: aBlock
+!
+
+select: aBlock
+	^ (self asString select: aBlock) asSymbol
+!
+
+withIndexDo: aBlock
+	self asString withIndexDo: aBlock
+! !
+
+!Symbol methodsFor: 'evaluating'!
+
+value: anObject 
+	^anObject perform: self
 ! !
 
 !Symbol methodsFor: 'printing'!
@@ -1355,8 +1445,10 @@ remove: anObject
 !Set methodsFor: 'comparing'!
 
 = aCollection
-	^self class = aCollection class and: [
-		elements = aCollection asArray]
+	self class = aCollection class ifFalse: [ ^ false ].
+    self size = aCollection size ifFalse: [ ^ false ].
+	self do: [:each | (aCollection includes: each) ifFalse: [ ^ false ] ].
+	^ true
 ! !
 
 !Set methodsFor: 'converting'!
@@ -1366,6 +1458,10 @@ asArray
 ! !
 
 !Set methodsFor: 'enumerating'!
+
+collect: aBlock
+	^self class withAll: (elements collect: aBlock)
+!
 
 detect: aBlock ifNone: anotherBlock
 	^elements detect: aBlock ifNone: anotherBlock
@@ -1395,6 +1491,54 @@ initialize
 
 includes: anObject
 	^elements includes: anObject
+! !
+
+Object subclass: #Queue
+	instanceVariableNames: 'read readIndex write'
+	package: 'Kernel-Collections'!
+!Queue commentStamp!
+A Queue am a one-sided queue.
+
+A Queue uses two OrderedCollections inside,
+`read` is at the front, is not modified and only read using `readIndex`.
+`write` is at the back and is appended new items.
+When `read` is exhausted, `write` is promoted to `read` and new `write` is created.
+
+As a consequence, no data moving is done by the Queue; write appending may do data moving
+when growing `write`, but this is left to engine to implement as good as it chooses to.!
+
+!Queue methodsFor: 'accessing'!
+
+back: anObject
+	write add: anObject
+!
+
+front
+    ^self frontIfAbsent: [ self error: 'Cannot read from empty Queue.' ]
+!
+
+frontIfAbsent: aBlock
+	| result |
+	result := read at: readIndex ifAbsent: [
+		write isEmpty ifTrue: [
+			readIndex > 1 ifTrue: [ read := #(). readIndex := 1 ].
+			^aBlock value ].
+    	read := write.
+    	readIndex := 1.
+    	write := OrderedCollection new.
+    	read first ].
+    read at: readIndex put: nil.
+    readIndex := readIndex + 1.
+    ^result
+! !
+
+!Queue methodsFor: 'initialization'!
+
+initialize
+	super initialize.
+	read := OrderedCollection new.
+    write := OrderedCollection new.
+    readIndex := 1
 ! !
 
 Object subclass: #RegularExpression

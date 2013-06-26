@@ -43,7 +43,7 @@ resetNodes
 
 renderOn: html
 	ul := html ul
-		class: 'jt_column browser classes';
+		class: 'amber_column browser classes';
 		yourself.
 	self updateNodes
 !
@@ -156,10 +156,10 @@ ErrorHandler subclass: #DebugErrorHandler
 !DebugErrorHandler methodsFor: 'error handling'!
 
 handleError: anError
-	[Debugger new
+	[ Debugger new
 		error: anError;
-		open] on: Error do: [:error |
-			ErrorHandler new handleError: error]
+		open ] on: Error do: [ :error |
+			ErrorHandler new handleError: error ]
 ! !
 
 !DebugErrorHandler class methodsFor: 'initialization'!
@@ -208,25 +208,9 @@ selection
 	^editor getSelection
 !
 
-selectionEnd
-   ^textarea element selectionEnd
-!
-
-selectionEnd: anInteger
-   textarea element selectionEnd: anInteger
-!
-
-selectionStart
-   ^textarea element selectionStart
-!
-
-selectionStart: anInteger
-   textarea element selectionStart: anInteger
-!
-
 setEditorOn: aTextarea
 	<self['@editor'] = CodeMirror.fromTextArea(aTextarea, {
-		theme: 'jtalk',
+		theme: 'amber',
                 lineNumbers: true,
                 enterMode: 'flat',
                 matchBrackets: true,
@@ -260,11 +244,15 @@ eval: aString
 	compiler := Compiler new.
 	[compiler parseExpression: aString] on: Error do: [:ex |
 		^window alert: ex messageText].
-	^(compiler eval: (compiler compile: 'doIt ^[', aString, '] value' forClass: DoIt)) fn applyTo: self receiver arguments: #()
+	^compiler evaluateExpression: aString
 !
 
 fileIn
     Importer new import: self currentLineOrSelection readStream
+!
+
+focus
+      self editor focus.
 !
 
 handleKeyDown: anEvent
@@ -292,20 +280,28 @@ inspectIt
 !
 
 print: aString
-	| start stop |
+	| start stop currentLine |
+    currentLine := (editor getCursor: false) line.
 	start := HashedCollection new.
-	stop := HashedCollection new.
-	start at: 'line' put: (editor getCursor: false) line.
+	start at: 'line' put: currentLine.
 	start at: 'ch' put: (editor getCursor: false) ch.
-	stop at: 'line' put: (start at: 'line').
+    (editor getSelection) ifEmpty: [
+    	"select current line if selection is empty"
+    	start at: 'ch' put: (editor getLine: currentLine) size.
+        editor setSelection: #{'line' -> currentLine. 'ch' -> 0} end: start.
+    ].
+	stop := HashedCollection new.
+	stop at: 'line' put: currentLine.
 	stop at: 'ch' put: ((start at: 'ch') + aString size + 2).
+
 	editor replaceSelection: (editor getSelection, ' ', aString, ' ').
 	editor setCursor: (editor getCursor: true).
 	editor setSelection: stop end: start
 !
 
 printIt
-    self print: self doIt printString
+    self print: self doIt printString.
+	self focus.
 ! !
 
 !SourceArea methodsFor: 'events'!
@@ -351,11 +347,11 @@ tabs
 
 close
     opened ifTrue: [
-	'#jtalk' asJQuery hide.
+	'#amber' asJQuery hide.
 	ul asJQuery hide.
 	selectedTab hide.
 	self removeBodyMargin.
-	'body' asJQuery removeClass: 'jtalkBody'.
+	'body' asJQuery removeClass: 'amberBody'.
 	opened := false]
 !
 
@@ -371,7 +367,7 @@ newBrowserTab
 !
 
 onResize: aBlock
-    <jQuery('#jtalk').resizable({
+    <jQuery('#amber').resizable({
 	handles: 'n', 
 	resize: aBlock,
 	minHeight: 230
@@ -384,8 +380,8 @@ onWindowResize: aBlock
 
 open
     opened ifFalse: [
-	'body' asJQuery addClass: 'jtalkBody'.
-	'#jtalk' asJQuery show.
+	'body' asJQuery addClass: 'amberBody'.
+	'#amber' asJQuery show.
 	ul asJQuery show.
 	self updateBodyMargin.
 	selectedTab show.
@@ -415,22 +411,22 @@ selectTab: aWidget
 !
 
 setBodyMargin: anInteger
-    '.jtalkBody' asJQuery css: 'margin-bottom' put: anInteger asString, 'px'
+    '.amberBody' asJQuery css: 'margin-bottom' put: anInteger asString, 'px'
 !
 
 updateBodyMargin
-    self setBodyMargin: '#jtalk' asJQuery height
+    self setBodyMargin: '#amber' asJQuery height
 !
 
 updatePosition
-    <jQuery('#jtalk').css('top', '').css('bottom', '0px')>
+    <jQuery('#amber').css('top', '').css('bottom', '0px')>
 ! !
 
 !TabManager methodsFor: 'adding/Removing'!
 
 addTab: aWidget
     self tabs add: aWidget.
-    aWidget appendToJQuery: '#jtalk' asJQuery.
+    aWidget appendToJQuery: '#amber' asJQuery.
     aWidget hide
 !
 
@@ -444,10 +440,10 @@ removeTab: aWidget
 initialize
     super initialize.
     opened := true.
-    [:html | html div id: 'jtalk'] appendToJQuery: 'body' asJQuery.
+    [:html | html div id: 'amber'] appendToJQuery: 'body' asJQuery.
     'body' asJQuery 
-	addClass: 'jtalkBody'.
-    self appendToJQuery: '#jtalk' asJQuery.
+	addClass: 'amberBody'.
+    self appendToJQuery: '#amber' asJQuery.
     self 
 	addTab: IDETranscript current;
 	addTab: Workspace new;
@@ -464,7 +460,7 @@ renderOn: html
 	html div id: 'logo'.
 	self renderToolbarOn: html.
 	ul := html ul
-		id: 'jtalkTabs';
+		id: 'amberTabs';
 		yourself.
 	self renderTabs
 !
@@ -504,7 +500,7 @@ renderTabs
 
 renderToolbarOn: html
 	html div 
-		id: 'jt_toolbar';
+		id: 'amber_toolbar';
 		with: [
 			input := html input 
 				class: 'implementors';
@@ -512,7 +508,7 @@ renderToolbarOn: html
 			input onKeyPress: [:event |
 				event keyCode = 13 ifTrue: [
 				self search: input asJQuery val]].
-			html div id: 'jt_close'; onClick: [self close]]
+			html div id: 'amber_close'; onClick: [self close]]
 ! !
 
 !TabManager methodsFor: 'updating'!
@@ -576,7 +572,7 @@ renderButtonsOn: html
 
 renderOn: html
 	div := html div
-		class: 'jtalkTool';
+		class: 'amberTool';
 		yourself.
 	self renderTab
 !
@@ -584,10 +580,10 @@ renderOn: html
 renderTab
 	div contents: [:html |
 	    html div
-		class: 'jt_box';
+		class: 'amber_box';
 		with: [self renderBoxOn: html].
 	    html div
-		class: 'jt_buttons';
+		class: 'amber_buttons';
 		with: [self renderButtonsOn: html]]
 !
 
@@ -785,19 +781,21 @@ cancelChanges
 
 commitPackage
 	selectedPackage ifNotNil: [ |package|
-               						 package := Package named: selectedPackage.
-               						 {	Exporter 			-> (package commitPathJs, '/', selectedPackage, '.js').
-                        					StrippedExporter 	-> (package commitPathJs, '/', selectedPackage, '.deploy.js').
-                       						 ChunkExporter 		-> (package commitPathSt, '/', selectedPackage, '.st') 			} 
-                 
-                						do: [:commitStrategy| |fileContents|
-                                                                     	fileContents := (commitStrategy key new exportPackage: selectedPackage).
-                                                                     	self ajaxPutAt: commitStrategy value data:  fileContents]
-         						]
+		package := Package named: selectedPackage.
+		{  	Exporter              -> (package commitPathJs, '/', selectedPackage, '.js').
+			StrippedExporter -> (package commitPathJs, '/', selectedPackage, '.deploy.js').
+			ChunkExporter    -> (package commitPathSt, '/', selectedPackage, '.st')
+		} do: [:commitStrategy| |fileContents|
+			fileContents := (commitStrategy key new exportPackage: selectedPackage).
+			self ajaxPutAt: commitStrategy value data:  fileContents
+  		]
+	]
 !
 
 compile
+    | currentEditLine |
     self disableSaveButton.
+    currentEditLine := sourceArea editor getCursor.
     selectedTab = #comment 
 	ifTrue: [
 			selectedClass ifNotNil: [
@@ -805,7 +803,8 @@ compile
 	ifFalse: [
 			(selectedProtocol notNil or: [selectedMethod notNil])
 				ifFalse: [self compileDefinition]
-				ifTrue: [self compileMethodDefinition]]
+				ifTrue: [self compileMethodDefinition]].
+    sourceArea editor setCursor: currentEditLine.
 !
 
 compileClassComment
@@ -831,7 +830,7 @@ compileMethodDefinition
 compileMethodDefinitionFor: aClass
     | compiler method source node | 
     source := sourceArea val.
-    selectedProtocol ifNil: [selectedProtocol := selectedMethod category].
+    selectedProtocol ifNil: [ selectedProtocol := selectedMethod category ].
     compiler := Compiler new.
     compiler source: source.
     node := compiler parse: source.
@@ -839,15 +838,13 @@ compileMethodDefinitionFor: aClass
 	^window alert: 'PARSE ERROR: ', node reason, ', position: ', node position asString].
     compiler currentClass: aClass.
     method := compiler eval: (compiler compileNode: node).
-    method category: selectedProtocol.
     compiler unknownVariables do: [:each |
          "Do not try to redeclare javascript's objects"
          (window at: each) ifNil: [
 	 	(window confirm: 'Declare ''', each, ''' as instance variable?') ifTrue: [
 			self addInstanceVariableNamed: each toClass: aClass.
 			^self compileMethodDefinitionFor: aClass]]].
-    aClass addCompiledMethod: method.
-    compiler setupClass: aClass.
+    ClassBuilder new installMethod: method forClass: aClass category: selectedProtocol.
     self updateMethodsList.
     self selectMethod: method
 !
@@ -1033,19 +1030,19 @@ initialize
 
 !Browser methodsFor: 'network'!
 
-ajaxPutAt: anURL data: aString
-	jQuery 
-		ajax: anURL	options: #{	'type' -> 'PUT'.
+ajaxPutAt: aURL data: aString
+	jQuery
+		ajax: aURL	options: #{	'type' -> 'PUT'.
 								'data' -> aString.
 								'contentType' -> 'text/plain;charset=UTF-8'.
-								'error' -> [window alert: 'PUT request failed at:  ', anURL] }
+								'error' -> [:xhr | window alert: 'Commiting ' , aURL , ' failed with reason: "' , (xhr responseText) , '"'] }
 ! !
 
 !Browser methodsFor: 'rendering'!
 
 renderBottomPanelOn: html
     html div
-	class: 'jt_sourceCode';
+	class: 'amber_sourceCode';
 	with: [
 	    sourceArea := SourceArea new.
 	    sourceArea renderOn: html.
@@ -1083,7 +1080,7 @@ renderButtonsOn: html
 !
 
 renderTabsOn: html
-    tabsList := html ul class: 'jt_tabs jt_browser'.
+    tabsList := html ul class: 'amber_tabs amber_browser'.
     self updateTabsList.
 !
 
@@ -1091,8 +1088,8 @@ renderTopPanelOn: html
 	html div 
 		class: 'top'; 
 		with: [
-			packagesList := html ul class: 'jt_column browser packages'.
-          		html div class: 'jt_packagesButtons'; with: [
+			packagesList := html ul class: 'amber_column browser packages'.
+          		html div class: 'amber_packagesButtons'; with: [
 				html button 
 					title: 'Commit classes in this package to disk';
 					onClick: [self commitPackage];
@@ -1107,14 +1104,14 @@ renderTopPanelOn: html
 					with: 'Remove'].
 			classesList := ClassesList on: self.
 			classesList renderOn: html.
-			protocolsList := html ul class: 'jt_column browser protocols'.
-			methodsList := html ul class: 'jt_column browser methods'.
+			protocolsList := html ul class: 'amber_column browser protocols'.
+			methodsList := html ul class: 'amber_column browser methods'.
 			self
 				updateCategoriesList;
 				updateClassesList;
 				updateProtocolsList;
 				updateMethodsList.
-			html div class: 'jt_clear']
+			html div class: 'amber_clear']
 ! !
 
 !Browser methodsFor: 'testing'!
@@ -1171,6 +1168,8 @@ updateProtocolsList
 !
 
 updateSourceAndButtons
+	| currentProtocol |
+
 	self disableSaveButton.
 	classButtons contents: [:html |
 		html button
@@ -1203,9 +1202,12 @@ updateSourceAndButtons
 				html option
 					class: 'important';
 					with: 'New...'.
-				self protocols do: [:each |
+                currentProtocol := selectedProtocol.
+                (currentProtocol isNil and: [ selectedMethod notNil ])
+                	ifTrue: [ currentProtocol := selectedMethod category].
+				self protocols do: [:each | | option |
 					option := html option with: each.
-					selectedProtocol = each ifTrue: [ option at: 'selected' put: 'selected' ] ]].
+					currentProtocol = each ifTrue: [ option at: 'selected' put: 'selected' ] ]].
 		selectedMethod isNil ifFalse: [
 			referencesSelect := html select.
                         referencesSelect
@@ -1213,7 +1215,8 @@ updateSourceAndButtons
 				with: [ |option|
 					html option
 						with: 'References';
-						at: 'disabled' put: 'disabled'.
+						at: 'disabled' put: 'disabled';
+                        at: 'selected' put: 'selected'.
 					html option
 						class: 'important';
 						with: selectedMethod selector.
@@ -1271,16 +1274,6 @@ updateTabsList
 	    onClick: [self selectTab: #comment]]
 ! !
 
-!Browser class methodsFor: 'accessing'!
-
-commitPathJs
-	^'js'
-!
-
-commitPathSt
-	^'st'
-! !
-
 !Browser class methodsFor: 'convenience'!
 
 open
@@ -1300,10 +1293,17 @@ TabWidget subclass: #Debugger
 
 !Debugger methodsFor: 'accessing'!
 
-arguments
-	^self method 
-		ifNil: [selectedContext temps collect: [:each | nil]]
-		ifNotNil: [self method arguments]
+allVariables
+	| all |
+	all := Dictionary new.
+
+	self receiver class allInstanceVariableNames do: [:each |
+		all at: each put: (self receiver instVarAt: each) ].
+    
+    selectedContext locals keysAndValuesDo: [ :key :value |
+    	all at: key put: value ].
+    
+    ^ all
 !
 
 error
@@ -1319,7 +1319,7 @@ label
 !
 
 method
-	^selectedContext receiver class methodAt: selectedContext selector
+	^selectedContext method
 !
 
 receiver
@@ -1363,6 +1363,7 @@ selectContext: aContext
 !
 
 selectVariable: anObject named: aString
+    
 	selectedVariable := anObject.
 	selectedVariableName := aString.
 	inspector contents: [:html | html with: anObject printString].
@@ -1380,18 +1381,18 @@ initialize
 
 renderBottomPanelOn: html
 	html div
-		class: 'jt_sourceCode debugger';
+		class: 'amber_sourceCode debugger';
 		with: [
 			sourceArea := SourceArea new.
 			sourceArea renderOn: html].
-	ul2 := html ul class: 'jt_column debugger variables'.
-	inspector := html div class: 'jt_column debugger inspector'.
+	ul2 := html ul class: 'amber_column debugger variables'.
+	inspector := html div class: 'amber_column debugger inspector'.
 	sourceArea
 		onKeyUp: [self updateStatus]
 !
 
 renderBoxOn: html
-    self 
+   self 
 	renderTopPanelOn: html;
 	renderBottomPanelOn: html
 !
@@ -1416,7 +1417,7 @@ renderButtonsOn: html
 		with: 'Abandon';
 		onClick: [self close].
 	inspectButton := html button
-		class: 'jt_button debugger inspect';
+		class: 'amber_button debugger inspect';
 		with: 'Inspect';
 		onClick: [self inspectSelectedVariable].
 	 self 
@@ -1434,7 +1435,7 @@ renderContext: aContext on: html
 	li 
 		with: aContext asString;
 		onClick: [self selectContext: aContext].
-	aContext home ifNotNil: [self renderContext: aContext home on: html]
+	aContext outerContext ifNotNil: [self renderContext: aContext outerContext on: html]
 !
 
 renderTopPanelOn: html
@@ -1446,7 +1447,7 @@ renderTopPanelOn: html
 				class: 'label';
 				with: self error messageText.
 			ul := html ul 
-				class: 'jt_column debugger contexts';
+				class: 'amber_column debugger contexts';
 				with: [self renderContext: self error context on: html]]
 ! !
 
@@ -1484,27 +1485,22 @@ updateStatus
 !
 
 updateVariablesList
-	ul2 contents: [:html | | li |
+	ul2 contents: [ :html | | li |
 		li := html li 
 			with: 'self';
-			onClick: [self selectVariable: self receiver named: 'self'].
-                selectedVariableName = 'self' ifTrue: [
-			li class: 'selected'].
-                self arguments withIndexDo: [:each :index | | param |
-                        param := selectedContext temps at: index.
+			onClick: [ self selectVariable: self receiver named: 'self' ].
+                selectedVariableName = 'self' ifTrue: [ li class: 'selected' ].
+        
+        self allVariables keysAndValuesDo: [:key :value |
                         li := html li 
-				with: each;
-				onClick: [self selectVariable: param named: each].
-                         selectedVariableName = each ifTrue: [
-				li class: 'selected']].
-                self receiver class allInstanceVariableNames do: [:each | | ivar |
-                        ivar := self receiver instVarAt: each.
-                        li := html li 
-				with: each;
-				onClick: [self selectVariable: ivar named: each].
-                         selectedVariableName = each ifTrue: [
-				li class: 'selected']]].
-	selectedVariable ifNil: [inspectButton at: 'disabled' put: true] ifNotNil: [inspectButton removeAt: 'disabled']
+							with: key;
+							onClick: [ self selectVariable: value named: key ].
+                        selectedVariableName = key ifTrue: [
+							li class: 'selected' ] ] ].
+                            
+	selectedVariable 
+    	ifNil: [ inspectButton at: 'disabled' put: true ] 
+        ifNotNil: [ inspectButton removeAt: 'disabled' ]
 ! !
 
 TabWidget subclass: #IDETranscript
@@ -1543,7 +1539,7 @@ show: anObject
 renderBoxOn: html
     textarea := html textarea.
     textarea 
-	class: 'jt_transcript';
+	class: 'amber_transcript';
 	at: 'spellcheck' put: 'false'
 !
 
@@ -1634,7 +1630,7 @@ refresh
 
 renderBottomPanelOn: html
     html div
-	class: 'jt_sourceCode';
+	class: 'amber_sourceCode';
 	with: [
 	    sourceArea := SourceArea new
 		receiver: object;
@@ -1666,18 +1662,18 @@ renderTopPanelOn: html
 	html div 
 		class: 'top'; 
 		with: [
-			variablesList := html ul class: 'jt_column variables'.
-			valueTextarea := html textarea class: 'jt_column value'; at: 'readonly' put: 'readonly'.
-			html div class: 'jt_tabs inspector'; with: [
+			variablesList := html ul class: 'amber_column variables'.
+			valueTextarea := html textarea class: 'amber_column value'; at: 'readonly' put: 'readonly'.
+			html div class: 'amber_tabs inspector'; with: [
 				html button
-					class: 'jt_button inspector refresh';
+					class: 'amber_button inspector refresh';
 					with: 'Refresh';
 					onClick: [self refresh].
 				diveButton := html button 
-					class: 'jt_button inspector dive';
+					class: 'amber_button inspector dive';
 					with: 'Dive'; 
 					onClick: [self dive]].
-			html div class: 'jt_clear'].
+			html div class: 'amber_clear'].
 	self
 		updateVariablesList;
 		updateValueTextarea.
@@ -1885,7 +1881,7 @@ renderBoxOn: html
 !
 
 renderImplementorsOn: html
-	implementorsList := html ul class: 'jt_column implementors'.
+	implementorsList := html ul class: 'amber_column implementors'.
 	self updateImplementorsList
 !
 
@@ -1898,17 +1894,17 @@ renderInputOn: html
 !
 
 renderMatchesOn: html
-	matchesList := html ul class: 'jt_column matches'.
+	matchesList := html ul class: 'amber_column matches'.
 	self updateMatchesList
 !
 
 renderReferencedClassesOn: html
-	referencedClassesList := html ul class: 'jt_column referenced_classes'.
+	referencedClassesList := html ul class: 'amber_column referenced_classes'.
 	self updateReferencedClassesList
 !
 
 renderSendersOn: html
-	sendersList := html ul class: 'jt_column senders'.
+	sendersList := html ul class: 'amber_column senders'.
 	self updateSendersList
 ! !
 
@@ -1985,7 +1981,7 @@ TabWidget subclass: #TestRunner
 !TestRunner methodsFor: 'accessing'!
 
 allClasses
-	^TestCase allSubclasses
+	^TestCase allSubclasses select: [ :each | each isAbstract not ]
 !
 
 classes
@@ -2030,28 +2026,30 @@ statusInfo
 testCases
 	| testCases |
 	testCases := #().
-	self selectedClasses do: [:each | testCases addAll: each buildSuite].
+	(self selectedClasses
+		select: [:each | self selectedCategories includes: each category])
+		do: [:each | testCases addAll: each buildSuite].
 	^testCases
 ! !
 
 !TestRunner methodsFor: 'actions'!
 
 performFailure: aTestCase
-	aTestCase perform: aTestCase selector
+	aTestCase runCase
 !
 
 run: aCollection
-	result := TestResult new.
-	self 
-		updateStatusDiv;
-		updateMethodsList.
-	self progressBar updatePercent: 0.
-	result total: aCollection size.
-	aCollection do: [:each | 
-		[each runCaseFor: result.
-		self progressBar updatePercent: result runs / result total * 100.
-		self updateStatusDiv.
-		self updateMethodsList] valueWithTimeout: 100].
+| worker |
+	worker := TestSuiteRunner on: aCollection.
+	result := worker result.
+    worker announcer on: ResultAnnouncement do: [:ann |
+    	ann result == result ifTrue: [
+			self progressBar updatePercent: result runs / result total * 100.
+			self updateStatusDiv.
+			self updateMethodsList
+  		]
+	].
+	worker run
 !
 
 selectAllCategories
@@ -2107,7 +2105,7 @@ printFailures
 !
 
 printPasses
-	^(self result total - self result errors size - self result failures size) asString , ' passes, '
+	^(self result runs - self result errors size - self result failures size) asString , ' passes, '
 !
 
 printTotal
@@ -2130,12 +2128,12 @@ renderButtonsOn: html
 !
 
 renderCategoriesOn: html
-	packagesList := html ul class: 'jt_column sunit packages'.
+	packagesList := html ul class: 'amber_column sunit packages'.
 	self updateCategoriesList
 !
 
 renderClassesOn: html
-	classesList := html ul class: 'jt_column sunit classes'.
+	classesList := html ul class: 'amber_column sunit classes'.
 	self updateClassesList
 !
 
@@ -2158,7 +2156,7 @@ renderFailuresOn: html
 renderResultsOn: html
 	statusDiv := html div.
 	html with: self progressBar.
-	methodsList := html ul class: 'jt_column sunit results'.
+	methodsList := html ul class: 'amber_column sunit results'.
 	self updateMethodsList.
 	self updateStatusDiv
 ! !
@@ -2248,6 +2246,11 @@ inspectIt
 
 printIt
 	sourceArea printIt
+!
+
+show
+	super show.
+	sourceArea focus.
 ! !
 
 !Workspace methodsFor: 'rendering'!
@@ -2344,24 +2347,6 @@ inspectOn: anInspector
 	variables at: '#self' put: self.
 	elements withIndexDo: [:each :i |
 		variables at: i put: each].
-	anInspector 
-		setLabel: self printString;
-		setVariables: variables
-! !
-
-!Date methodsFor: '*IDE'!
-
-inspectOn: anInspector
-	| variables |
-	variables := Dictionary new.
-	variables at: '#self' put: self.
-	variables at: '#year' put: self year.
-	variables at: '#month' put: self month.
-	variables at: '#day' put: self day.
-	variables at: '#hours' put: self hours.
-	variables at: '#minutes' put: self minutes.
-	variables at: '#seconds' put: self seconds.
-	variables at: '#milliseconds' put: self milliseconds.
 	anInspector 
 		setLabel: self printString;
 		setVariables: variables

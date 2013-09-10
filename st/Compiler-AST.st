@@ -1,24 +1,65 @@
-Smalltalk current createPackage: 'Compiler-AST' properties: #{}!
+Smalltalk current createPackage: 'Compiler-AST'!
 Object subclass: #Node
-	instanceVariableNames: 'position nodes shouldBeInlined shouldBeAliased'
+	instanceVariableNames: 'parent position nodes shouldBeInlined shouldBeAliased'
 	package: 'Compiler-AST'!
 !Node commentStamp!
 I am the abstract root class of the abstract syntax tree.
 
-position: holds a point containing lline- and column number of the symbol location in the original source file!
+Concrete classes should implement `#accept:` to allow visiting.
+
+`position` holds a point containing line and column number of the symbol location in the original source file.!
 
 !Node methodsFor: 'accessing'!
 
 addNode: aNode
-	self nodes add: aNode
+	self nodes add: aNode.
+	aNode parent: self
+!
+
+nextChild
+	"Answer the next node after aNode.
+	Recurse into the possible children of the receiver to answer the next node to be evaluated"
+	
+	^ self nodes isEmpty
+		ifTrue: [ self ]
+		ifFalse: [ self nodes first nextChild ]
+!
+
+nextNode
+	^ self parent ifNotNil: [ :node |
+		node nextNode: self ]
+!
+
+nextNode: aNode
+	"Answer the next node after aNode.
+	Recurse into the possible children of the next node to answer the next node to be evaluated"
+	
+	| next |
+	
+	next := self nodes 
+		at: (self nodes indexOf: aNode) + 1
+		ifAbsent: [ ^ self ].
+	
+	^ next nextChild
 !
 
 nodes
 	^nodes ifNil: [nodes := Array new]
 !
 
+parent
+	^ parent
+!
+
+parent: aNode
+	parent := aNode
+!
+
 position
-	^position ifNil: [position := 0@0]
+	"answer the line and column of the receiver in the source code"
+	
+	^ position ifNil: [ 
+		self parent ifNotNil: [ :node | node position ] ]
 !
 
 shouldBeAliased
@@ -40,11 +81,19 @@ shouldBeInlined: aBoolean
 !Node methodsFor: 'building'!
 
 nodes: aCollection
-	nodes := aCollection
+	nodes := aCollection.
+	aCollection do: [ :each | each parent: self ]
 !
 
 position: aPosition
 	position := aPosition
+! !
+
+!Node methodsFor: 'copying'!
+
+postCopy
+	super postCopy.
+	self nodes do: [ :each | each parent: self ]
 ! !
 
 !Node methodsFor: 'testing'!
@@ -61,8 +110,20 @@ isBlockSequenceNode
 	^false
 !
 
+isCascadeNode
+	^ false
+!
+
 isImmutable
 	^false
+!
+
+isJSStatementNode
+	^ false
+!
+
+isLastChild
+	^ self parent nodes last = self
 !
 
 isNode
@@ -81,9 +142,13 @@ isValueNode
 	^false
 !
 
+stopOnStepping
+	^ false
+!
+
 subtreeNeedsAliasing
-    ^(self shouldBeAliased or: [ self shouldBeInlined ]) or: [
-        (self nodes detect: [ :each | each subtreeNeedsAliasing ] ifNone: [ false ]) ~= false ]
+	^(self shouldBeAliased or: [ self shouldBeInlined ]) or: [
+		(self nodes detect: [ :each | each subtreeNeedsAliasing ] ifNone: [ false ]) ~= false ]
 ! !
 
 !Node methodsFor: 'visiting'!
@@ -95,6 +160,8 @@ accept: aVisitor
 Node subclass: #AssignmentNode
 	instanceVariableNames: 'left right'
 	package: 'Compiler-AST'!
+!AssignmentNode commentStamp!
+I represent an assignment node.!
 
 !AssignmentNode methodsFor: 'accessing'!
 
@@ -103,7 +170,8 @@ left
 !
 
 left: aNode
-	left := aNode
+	left := aNode.
+	aNode parent: self
 !
 
 nodes
@@ -115,7 +183,8 @@ right
 !
 
 right: aNode
-	right := aNode
+	right := aNode.
+	aNode parent: self
 ! !
 
 !AssignmentNode methodsFor: 'testing'!
@@ -133,8 +202,22 @@ accept: aVisitor
 Node subclass: #BlockNode
 	instanceVariableNames: 'parameters scope'
 	package: 'Compiler-AST'!
+!BlockNode commentStamp!
+I represent an block closure node.!
 
 !BlockNode methodsFor: 'accessing'!
+
+nextChild
+	"Answer the receiver as we want to avoid eager evaluation"
+	
+	^ self
+!
+
+nextNode: aNode
+	"Answer the receiver as we want to avoid eager evaluation"
+	
+	^ self
+!
 
 parameters
 	^parameters ifNil: [parameters := Array new]
@@ -159,7 +242,7 @@ isBlockNode
 !
 
 subtreeNeedsAliasing
-    ^ self shouldBeAliased or: [ self shouldBeInlined ]
+	^ self shouldBeAliased or: [ self shouldBeInlined ]
 ! !
 
 !BlockNode methodsFor: 'visiting'!
@@ -171,6 +254,8 @@ accept: aVisitor
 Node subclass: #CascadeNode
 	instanceVariableNames: 'receiver'
 	package: 'Compiler-AST'!
+!CascadeNode commentStamp!
+I represent an cascade node.!
 
 !CascadeNode methodsFor: 'accessing'!
 
@@ -182,6 +267,12 @@ receiver: aNode
 	receiver := aNode
 ! !
 
+!CascadeNode methodsFor: 'testing'!
+
+isCascadeNode
+	^ true
+! !
+
 !CascadeNode methodsFor: 'visiting'!
 
 accept: aVisitor
@@ -191,6 +282,8 @@ accept: aVisitor
 Node subclass: #DynamicArrayNode
 	instanceVariableNames: ''
 	package: 'Compiler-AST'!
+!DynamicArrayNode commentStamp!
+I represent an dynamic array node.!
 
 !DynamicArrayNode methodsFor: 'visiting'!
 
@@ -201,6 +294,8 @@ accept: aVisitor
 Node subclass: #DynamicDictionaryNode
 	instanceVariableNames: ''
 	package: 'Compiler-AST'!
+!DynamicDictionaryNode commentStamp!
+I represent an dynamic dictionary node.!
 
 !DynamicDictionaryNode methodsFor: 'visiting'!
 
@@ -211,6 +306,8 @@ accept: aVisitor
 Node subclass: #JSStatementNode
 	instanceVariableNames: 'source'
 	package: 'Compiler-AST'!
+!JSStatementNode commentStamp!
+I represent an JavaScript statement node.!
 
 !JSStatementNode methodsFor: 'accessing'!
 
@@ -222,6 +319,12 @@ source: aString
 	source := aString
 ! !
 
+!JSStatementNode methodsFor: 'testing'!
+
+isJSStatementNode
+	^ true
+! !
+
 !JSStatementNode methodsFor: 'visiting'!
 
 accept: aVisitor
@@ -231,6 +334,10 @@ accept: aVisitor
 Node subclass: #MethodNode
 	instanceVariableNames: 'selector arguments source scope classReferences messageSends superSends'
 	package: 'Compiler-AST'!
+!MethodNode commentStamp!
+I represent an method node.
+
+A method node must be the root and only method node of a valid AST.!
 
 !MethodNode methodsFor: 'accessing'!
 
@@ -248,6 +355,10 @@ classReferences
 
 classReferences: aCollection
 	classReferences := aCollection
+!
+
+extent
+	^ self source lines size @ (self source lines last size + 1)
 !
 
 messageSends
@@ -299,6 +410,8 @@ accept: aVisitor
 Node subclass: #ReturnNode
 	instanceVariableNames: 'scope'
 	package: 'Compiler-AST'!
+!ReturnNode commentStamp!
+I represent an return node. At the AST level, there is not difference between a local return or non-local return.!
 
 !ReturnNode methodsFor: 'accessing'!
 
@@ -329,6 +442,8 @@ accept: aVisitor
 Node subclass: #SendNode
 	instanceVariableNames: 'selector arguments receiver superSend index'
 	package: 'Compiler-AST'!
+!SendNode commentStamp!
+I represent an message send node.!
 
 !SendNode methodsFor: 'accessing'!
 
@@ -337,19 +452,20 @@ arguments
 !
 
 arguments: aCollection
-	arguments := aCollection
+	arguments := aCollection.
+	aCollection do: [ :each | each parent: self ]
 !
 
 cascadeNodeWithMessages: aCollection
 	| first |
 	first := SendNode new
-	    selector: self selector;
-	    arguments: self arguments;
-	    yourself.
+		selector: self selector;
+		arguments: self arguments;
+		yourself.
 	^CascadeNode new
-	    receiver: self receiver;
-	    nodes: (Array with: first), aCollection;
-	    yourself
+		receiver: self receiver;
+		nodes: (Array with: first), aCollection;
+		yourself
 !
 
 index
@@ -361,8 +477,10 @@ index: anInteger
 !
 
 nodes
-	^ (Array withAll: self arguments)
-		add: self receiver;
+	self receiver ifNil: [ ^ self arguments copy ].
+	
+	^ (Array with: self receiver)
+		addAll: self arguments;
 		yourself
 !
 
@@ -371,7 +489,9 @@ receiver
 !
 
 receiver: aNode
-	receiver := aNode
+	receiver := aNode.
+	aNode isNode ifTrue: [
+		aNode parent: self ]
 !
 
 selector
@@ -392,17 +512,26 @@ superSend: aBoolean
 
 valueForReceiver: anObject
 	^SendNode new
-	    receiver: (self receiver 
+		position: self position;
+		receiver: (self receiver
 		ifNil: [anObject]
 		ifNotNil: [self receiver valueForReceiver: anObject]);
-	    selector: self selector;
-	    arguments: self arguments;
-	    yourself
+		selector: self selector;
+		arguments: self arguments;
+		yourself
 ! !
 
 !SendNode methodsFor: 'testing'!
 
+isCascadeSendNode
+	^ self parent isCascadeNode
+!
+
 isSendNode
+	^ true
+!
+
+stopOnStepping
 	^ true
 ! !
 
@@ -415,6 +544,8 @@ accept: aVisitor
 Node subclass: #SequenceNode
 	instanceVariableNames: 'temps scope'
 	package: 'Compiler-AST'!
+!SequenceNode commentStamp!
+I represent an sequence node. A sequence represent a set of instructions inside the same scope (the method scope or a block scope).!
 
 !SequenceNode methodsFor: 'accessing'!
 
@@ -438,9 +569,10 @@ temps: aCollection
 
 asBlockSequenceNode
 	^BlockSequenceNode new
-	    nodes: self nodes;
-	    temps: self temps;
-	    yourself
+		position: self position;
+		nodes: self nodes;
+		temps: self temps;
+		yourself
 ! !
 
 !SequenceNode methodsFor: 'visiting'!
@@ -452,6 +584,8 @@ accept: aVisitor
 SequenceNode subclass: #BlockSequenceNode
 	instanceVariableNames: ''
 	package: 'Compiler-AST'!
+!BlockSequenceNode commentStamp!
+I represent an special sequence node for block scopes.!
 
 !BlockSequenceNode methodsFor: 'testing'!
 
@@ -468,6 +602,8 @@ accept: aVisitor
 Node subclass: #ValueNode
 	instanceVariableNames: 'value'
 	package: 'Compiler-AST'!
+!ValueNode commentStamp!
+I represent a value node.!
 
 !ValueNode methodsFor: 'accessing'!
 
@@ -482,7 +618,7 @@ value: anObject
 !ValueNode methodsFor: 'testing'!
 
 isImmutable
-	^true
+	^ self value isImmutable
 !
 
 isValueNode
@@ -495,9 +631,16 @@ accept: aVisitor
 	^ aVisitor visitValueNode: self
 ! !
 
+!ValueNode methodsFor: 'xxxDoIt'!
+
+xxxDoIt ^[self stack] value
+! !
+
 ValueNode subclass: #VariableNode
 	instanceVariableNames: 'assigned binding'
 	package: 'Compiler-AST'!
+!VariableNode commentStamp!
+I represent an variable node.!
 
 !VariableNode methodsFor: 'accessing'!
 
@@ -541,6 +684,8 @@ accept: aVisitor
 VariableNode subclass: #ClassReferenceNode
 	instanceVariableNames: ''
 	package: 'Compiler-AST'!
+!ClassReferenceNode commentStamp!
+I represent an class reference node.!
 
 !ClassReferenceNode methodsFor: 'visiting'!
 
@@ -552,5 +697,13 @@ accept: aVisitor
 
 isNode
 	^ false
+! !
+
+!CompiledMethod methodsFor: '*Compiler-AST'!
+
+ast
+	self source ifEmpty: [ self error: 'Method source is empty' ].
+	
+	^ Smalltalk current parse: self source
 ! !
 

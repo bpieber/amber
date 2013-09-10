@@ -1,52 +1,16 @@
-Smalltalk current createPackage: 'Compiler-Tests' properties: #{}!
-TestCase subclass: #AbstractASTInterpreterTest
+Smalltalk current createPackage: 'Compiler-Tests'!
+TestCase subclass: #ASTParsingTest
 	instanceVariableNames: ''
 	package: 'Compiler-Tests'!
 
-!AbstractASTInterpreterTest methodsFor: 'accessing'!
-
-interpreter
-	^ self subclassResponsibility
-! !
-
-!AbstractASTInterpreterTest methodsFor: 'interpreting'!
+!ASTParsingTest methodsFor: 'convenience'!
 
 analyze: aNode forClass: aClass
 	(SemanticAnalyzer on: aClass) visit: aNode.
-    ^ aNode
-!
-
-interpret: aString
-	^ self 
-    	interpret: aString 
-        withArguments: Dictionary new
-!
-
-interpret: aString receiver: anObject withArguments: aDictionary
-	"The food is a methodNode. Interpret the sequenceNode only"
-    
-    | ctx |
-    
-    ctx := AIContext new.
-    ctx receiver: anObject.
-    aDictionary keysAndValuesDo: [ :key :value |
-    	ctx localAt: key put: value ].
-    
-    ^ self interpreter
-    	context: ctx;
-    	interpret: (self parse: aString forClass: anObject class) 
-        	nodes first;
-        result
-!
-
-interpret: aString withArguments: aDictionary
-	^ self 
-    	interpret: aString 
-        receiver: Object new
-        withArguments: aDictionary
+	^ aNode
 ! !
 
-!AbstractASTInterpreterTest methodsFor: 'parsing'!
+!ASTParsingTest methodsFor: 'parsing'!
 
 parse: aString
 	^ Smalltalk current parse: aString
@@ -56,151 +20,78 @@ parse: aString forClass: aClass
 	^ self analyze: (self parse: aString) forClass: aClass
 ! !
 
-AbstractASTInterpreterTest subclass: #ASTInterpreterTest
+ASTParsingTest subclass: #ASTPCNodeVisitorTest
 	instanceVariableNames: ''
 	package: 'Compiler-Tests'!
 
-!ASTInterpreterTest methodsFor: 'accessing'!
+!ASTPCNodeVisitorTest methodsFor: 'factory'!
 
-interpreter
-	^ ASTInterpreter new
+astPCNodeVisitor
+	^ self astPCNodeVisitorForPC: 0
+!
+
+astPCNodeVisitorForPC: anInteger
+	^ ASTPCNodeVisitor new
+		pc: 0;
+		context: (AIContext new 
+			pc: anInteger; 
+			yourself);
+		yourself
 ! !
 
-!ASTInterpreterTest methodsFor: 'tests'!
+!ASTPCNodeVisitorTest methodsFor: 'tests'!
 
-testBinarySend
-	self assert: (self interpret: 'foo 2+3+4') equals: 9
-!
-
-testBlockLiteral
-	self assert: (self interpret: 'foo ^ true ifTrue: [ 1 ] ifFalse: [ 2 ]') equals: 1.
-    self assert: (self interpret: 'foo true ifTrue: [ ^ 1 ] ifFalse: [ 2 ]') equals: 1.
-    self assert: (self interpret: 'foo ^ false ifTrue: [ 1 ] ifFalse: [ 2 ]') equals: 2
-!
-
-testCascade
-	self assert: (self interpret: 'foo ^ OrderedCollection new add: 2; add: 3; yourself') equals: (OrderedCollection with: 2 with: 3)
-!
-
-testDynamicArray
-	self assert: (self interpret: 'foo ^ {1+1. 2+2}') equals: #(2 4)
-!
-
-testDynamicDictionary
-	self assert: (self interpret: 'foo ^ #{1->1. 2->3}') equals: #{1->1. 2->3}
-!
-
-testInlinedJSStatement
-	self assert: (self interpret: 'foo <return 2+3>') equals: 5.
-    
-    self 
-    	assert: (self 
-    		interpret: 'foo: anInteger <return 2 + anInteger>' 
-        	withArguments: #{ 'anInteger' -> 3}) 
-		equals: 5
-!
-
-testInstVarAccess
-	self 
-    	assert: (self 
-    		interpret: 'foo ^ x'
-        	receiver: 2@3
-        	withArguments: #{})
-        equals: 2
-!
-
-testInstVarAssignment
-	self 
-    	assert: (self 
-    		interpret: 'foo: anInteger x := anInteger. ^ x'
-        	receiver: Point new
-        	withArguments: #{'anInteger' -> 2})
-        equals: 2
-!
-
-testNonlocalReturn
-	self assert: (self interpret: 'foo true ifTrue: [ ^ 1 ]. ^2') equals: 1
-!
-
-testReceiver
-	self 
-    	assert: (self 
-    		interpret: 'foo ^ self'
-        	receiver: 2@3
-        	withArguments: #{})
-        equals: 2@3
-!
-
-testTempAssignment
-	self assert: (self interpret: 'foo | a | a := 2. ^ a') equals: 2
-! !
-
-AbstractASTInterpreterTest subclass: #ASTSteppingInterpreterTest
-	instanceVariableNames: 'interpreter'
-	package: 'Compiler-Tests'!
-
-!ASTSteppingInterpreterTest methodsFor: 'accessing'!
-
-interpreter
-	^ interpreter ifNil: [ interpreter := ASTSteppingInterpreter new ]
-! !
-
-!ASTSteppingInterpreterTest methodsFor: 'tests'!
-
-testAtEnd
-	self interpret: 'foo 1 + 2'.
-    self deny: self interpreter atEnd.
-
-    self interpreter step.
-    self deny: self interpreter atEnd.
-    
-    self interpreter step.
-    self deny: self interpreter atEnd.
-    
-    self interpreter step.
-    self deny: self interpreter atEnd.
-    
-    self interpreter step.
-    self assert: self interpreter atEnd
+testJSStatementNode
+	| ast visitor |
+	
+	ast := self parse: 'foo <consolee.log(1)>' forClass: Object.
+	self assert: (self astPCNodeVisitor
+		visit: ast;
+		currentNode) isJSStatementNode
 !
 
 testMessageSend
-	self interpret: 'foo 1 + 2'.
-    
-    "SequenceNode"
-    self interpreter step.
-    
-    "SendNode"
-    self interpreter step.
-    
-     "ValueNode"
-    self interpreter step.
-    self assert: self interpreter currentNode value equals: 1.
-    
-    "ValueNode"
-    self interpreter step.
-    self assert: self interpreter currentNode value equals: 2.
-    
-    "Result"
-    self interpreter step.
-    self assert: self interpreter result equals: 3
+	| ast |
+	
+	ast := self parse: 'foo self asString yourself. ^ self asBoolean' forClass: Object.
+	self assert: ((self astPCNodeVisitorForPC: 2)
+		visit: ast;
+		currentNode) selector equals: 'yourself'
 !
 
-testSimpleStepping
-	self interpret: 'foo 1'.
-    
-    "SequenceNode"
-    self interpreter step.
-    
-    self assert: self interpreter result isNil.
-    
-    "ValueNode"
-    self interpreter step.
-    
-    self assert: self interpreter result equals: 1
+testMessageSendWithInlining
+	| ast |
+	
+	ast := self parse: 'foo true ifTrue: [ self asString yourself ]. ^ self asBoolean' forClass: Object.
+	self assert: ((self astPCNodeVisitorForPC: 2)
+		visit: ast;
+		currentNode) selector equals: 'yourself'.
+		
+	ast := self parse: 'foo true ifTrue: [ self asString yourself ]. ^ self asBoolean' forClass: Object.
+	self assert: ((self astPCNodeVisitorForPC: 3)
+		visit: ast;
+		currentNode) selector equals: 'asBoolean'
+!
+
+testNoMessageSend
+	| ast |
+	
+	ast := self parse: 'foo ^ self' forClass: Object.
+	self assert: (self astPCNodeVisitor
+		visit: ast;
+		currentNode) isNil
+!
+
+testPC
+	| ast visitor |
+	
+	ast := self parse: 'foo <console.log(1)>' forClass: Object.
+	self assert: (self astPCNodeVisitor
+		visit: ast;
+		currentNode) isJSStatementNode
 ! !
 
-TestCase subclass: #CodeGeneratorTest
+ASTParsingTest subclass: #CodeGeneratorTest
 	instanceVariableNames: 'receiver'
 	package: 'Compiler-Tests'!
 
@@ -208,10 +99,6 @@ TestCase subclass: #CodeGeneratorTest
 
 codeGeneratorClass
 	^ CodeGenerator
-!
-
-targetClass
-	^ DoIt
 ! !
 
 !CodeGeneratorTest methodsFor: 'factory'!
@@ -225,7 +112,7 @@ compiler
 !CodeGeneratorTest methodsFor: 'initialization'!
 
 setUp
-	receiver := self targetClass new
+	receiver := DoIt new
 !
 
 tearDown
@@ -235,12 +122,20 @@ tearDown
 !CodeGeneratorTest methodsFor: 'testing'!
 
 should: aString return: anObject
+	^ self 
+		should: aString 
+		receiver: receiver 
+		return: anObject
+!
+
+should: aString receiver: anObject return: aResult
 	| method result |
 
-	method := self compiler install: aString forClass: self targetClass category: 'tests'.
+	receiver := anObject.
+	method := self compiler install: aString forClass: anObject class category: 'tests'.
 	result := receiver perform: method selector.
-	self targetClass removeCompiledMethod: method.
-	self assert: anObject equals: result
+	anObject class removeCompiledMethod: method.
+	self assert: aResult equals: result
 ! !
 
 !CodeGeneratorTest methodsFor: 'tests'!
@@ -250,6 +145,12 @@ testAssignment
 	self should: 'foo | a | a := false ifTrue: [ 1 ]. ^ a' return: nil.
 
 	self should: 'foo | a | ^ a := true ifTrue: [ 1 ]' return: 1
+!
+
+testBackslashSelectors
+	
+	self should: '\ arg ^ 4' return: 4.
+	self should: '\\ arg ^ 42' return: 42
 !
 
 testBlockReturn
@@ -265,40 +166,40 @@ testCascades
 
 testDynamicArrayElementsOrdered
 	self should: 'foo
-  | x |
-  x := 1.
-  ^ { x. true ifTrue: [ x := 2 ] }
+	| x |
+	x := 1.
+	^ { x. true ifTrue: [ x := 2 ] }
 ' return: #(1 2).
 !
 
 testDynamicDictionaryElementsOrdered
 	self should: 'foo
-  | x |
-  x := ''foo''->1.
-  ^ #{ x. (true ifTrue: [ x := ''bar''->2 ]) }
+	| x |
+	x := ''foo''->1.
+	^ #{ x. (true ifTrue: [ x := ''bar''->2 ]) }
 ' return: #{'foo'->1. 'bar'->2}.
 !
 
 testInnerTemporalDependentElementsOrdered
 	self should: 'foo
-  | x |
-  x := Array.
-  ^ x with: ''foo''->x with: ''bar''->(true ifTrue: [ x := 2 ])
+	| x |
+	x := Array.
+	^ x with: ''foo''->x with: ''bar''->(true ifTrue: [ x := 2 ])
 ' return: {'foo'->Array. 'bar'->2}.
 	self should: 'foo
-  | x |
-  x := 1.
-  ^ Array with: ''foo''->x with: ''bar''->(true ifTrue: [ x := 2 ])
+	| x |
+	x := 1.
+	^ Array with: ''foo''->x with: ''bar''->(true ifTrue: [ x := 2 ])
 ' return: {'foo'->1. 'bar'->2}.
 	self should: 'foo
-  | x |
-  x := 1.
-  ^ { ''foo''->x. ''bar''->(true ifTrue: [ x := 2 ]) }
+	| x |
+	x := 1.
+	^ { ''foo''->x. ''bar''->(true ifTrue: [ x := 2 ]) }
 ' return: {'foo'->1. 'bar'->2}.
 	self should: 'foo
-  | x |
-  x := 1.
-  ^ #{ ''foo''->x. ''bar''->(true ifTrue: [ x := 2 ]) }
+	| x |
+	x := 1.
+	^ #{ ''foo''->x. ''bar''->(true ifTrue: [ x := 2 ]) }
 ' return: #{'foo'->1. 'bar'->2}.
 !
 
@@ -332,6 +233,15 @@ testMessageSends
 	self should: 'foo ^ 1 to: 5 by: 2' return: #(1 3 5)
 !
 
+testMutableLiterals
+	"Mutable literals must be aliased in cascades.
+	See https://github.com/amber-smalltalk/amber/issues/428"
+	
+	self 
+		should: 'foo ^ #( 1 2 ) at: 1 put: 3; yourself' 
+		return: #(3 2)
+!
+
 testNestedIfTrue
 	self should: 'foo ^ true ifTrue: [ false ifFalse: [ 1 ] ]' return: 1.
 	self should: 'foo ^ true ifTrue: [ false ifTrue: [ 1 ] ]' return: nil.
@@ -347,17 +257,22 @@ testNonLocalReturn
 	self should: 'foo [ :x | ^ x + x ] value: 4. ^ 2' return: 8
 !
 
+testPascalCaseGlobal
+	self should: 'foo ^Object' return: (smalltalk at: 'Object').
+	self should: 'foo ^NonExistent' return: nil
+!
+
 testSendReceiverAndArgumentsOrdered
 	self should: 'foo
-  | x |
-  x := 1.
-  ^ Array with: x with: (true ifTrue: [ x := 2 ])
+	| x |
+	x := 1.
+	^ Array with: x with: (true ifTrue: [ x := 2 ])
 ' return: #(1 2).
 
 	self should: 'foo
-  | x |
-  x := Array.
-  ^ x with: x with: (true ifTrue: [ x := 2 ])
+	| x |
+	x := Array.
+	^ x with: x with: (true ifTrue: [ x := 2 ])
 ' return: {Array. 2}.
 !
 
@@ -401,6 +316,17 @@ testifNotNil
 	self should: 'foo nil ifNotNil: [ ^ 2 ]' return: receiver.
 !
 
+testifNotNilWithArgument
+	self should: 'foo ^ 1 ifNotNil: [ :val | val + 2 ]' return: 3.
+	self should: 'foo ^ nil ifNotNil: [ :val | val + 2 ]' return: nil.
+	
+	self should: 'foo ^ 1 ifNil: [ 5 ] ifNotNil: [ :val | val + 2 ]' return: 3.
+	self should: 'foo ^ nil ifNil: [ 5 ] ifNotNil: [ :val | val + 2 ]' return: 5.
+	
+	self should: 'foo ^ 1 ifNotNil: [ :val | val + 2 ] ifNil: [ 5 ]' return: 3.
+	self should: 'foo ^ nil ifNotNil: [ :val | val + 2 ] ifNil: [ 5 ]' return: 5
+!
+
 testifTrue
 	self should: 'foo false ifTrue: [ ^ 1 ]' return: receiver.
 	self should: 'foo true ifTrue: [ ^ 2 ]' return: 2.
@@ -415,6 +341,35 @@ testifTrueIfFalse
 	
 	self should: 'foo ^ false ifTrue: [ 2 ] ifFalse: [ 1 ]' return: 1.
 	self should: 'foo ^ true ifTrue: [ 2 ] ifFalse: [ 1 ]' return: 2.
+!
+
+testGlobalVar
+	self should: 'foo ^ eval class' return: BlockClosure.
+	self should: 'foo ^ Math cos: 0' return: 1.
+	self should: 'foo ^ NonExistingVar' return: nil
+!
+
+testJSStatement
+	self should: 'foo <return 2+3>' return: 5
+!
+
+testMultipleSequences
+	self should: 'foo | a b c | a := 2. b := 3. c := a + b. ^ c * 6' return: 30
+!
+
+testNestedSends
+	self should: 'foo ^ (Point x: (Point x: 2 y: 3) y: 4) asString' return: (Point x: (2@3) y: 4) asString
+!
+
+testSuperSend
+	self 
+		should: 'foo ^ super isBoolean' 
+		receiver: true
+		return: false
+!
+
+testThisContext
+	self should: 'foo ^ [ thisContext ] value outerContext == thisContext' return: true
 ! !
 
 CodeGeneratorTest subclass: #InliningCodeGeneratorTest
@@ -425,6 +380,65 @@ CodeGeneratorTest subclass: #InliningCodeGeneratorTest
 
 codeGeneratorClass
 	^ InliningCodeGenerator
+! !
+
+CodeGeneratorTest subclass: #InterpreterTest
+	instanceVariableNames: ''
+	package: 'Compiler-Tests'!
+
+!InterpreterTest methodsFor: 'parsing'!
+
+parse: aString forClass: aClass
+	^ self analyze: (self parse: aString) forClass: aClass
+!
+
+analyze: aNode forClass: aClass
+	(SemanticAnalyzer on: aClass) visit: aNode.
+	^ aNode
+!
+
+parse: aString
+	^ Smalltalk current parse: aString
+! !
+
+!InterpreterTest methodsFor: 'private'!
+
+interpret: aString receiver: anObject withArguments: aDictionary
+	"The food is a methodNode. Interpret the sequenceNode only"
+	
+	| ctx interpreter |
+	
+	interpreter := ASTInterpreter new.
+	
+	ctx := AIContext new
+		receiver: anObject;
+		interpreter: interpreter;
+		yourself.
+	aDictionary keysAndValuesDo: [ :key :value |
+		ctx localAt: key put: value ].
+	
+	^ interpreter
+		context: ctx;
+		interpret: (self parse: aString forClass: anObject class) nextChild;
+		proceed;
+		result
+! !
+
+!InterpreterTest methodsFor: 'testing'!
+
+should: aString return: anObject
+	^ self 
+		should: aString
+		receiver: receiver
+		return: anObject
+!
+
+should: aString receiver: anObject return: aResult
+	receiver := anObject.
+	
+	^ self 
+		assert: (self interpret: aString receiver: receiver withArguments: #{})
+		equals: aResult
 ! !
 
 TestCase subclass: #ScopeVarTest

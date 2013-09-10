@@ -1,66 +1,126 @@
-Smalltalk current createPackage: 'Canvas' properties: #{}!
+Smalltalk current createPackage: 'Canvas'!
+Object subclass: #BrowserInterface
+	instanceVariableNames: ''
+	package: 'Canvas'!
+!BrowserInterface commentStamp!
+I am platform interface class that tries to use window and jQuery; that is, one for browser environment.
+
+## API
+
+    self isAvailable. "true if window and jQuery exist".
+
+    self alert: 'Hey, there is a problem'.
+    self confirm: 'Affirmative?'.
+    self prompt: 'Your name:'.
+
+    self ajax: #{
+        'url' -> '/patch.js'. 'type' -> 'GET'. dataType->'script'
+    }.!
+
+!BrowserInterface methodsFor: 'actions'!
+
+ajax: anObject
+	^jQuery ajax: anObject
+!
+
+alert: aString
+	^window alert: aString
+!
+
+confirm: aString
+	^window confirm: aString
+!
+
+prompt: aString
+	^window prompt: aString
+! !
+
+!BrowserInterface methodsFor: 'testing'!
+
+isAvailable
+<return typeof window !!== "undefined" && typeof jQuery !!== "undefined">
+! !
+
+BrowserInterface class instanceVariableNames: 'uiWorker ajaxWorker'!
+
 Object subclass: #HTMLCanvas
 	instanceVariableNames: 'root'
 	package: 'Canvas'!
+!HTMLCanvas commentStamp!
+I am a canvas for building HTML.
+
+I provide the `#tag:` method to create a `TagBrush` (wrapping a DOM element) and convenience methods in the `tags` protocol.
+
+## API
+
+My instances are used as the argument of the `#renderOn:` method of `Widget` objects.
+
+The `#with:` method is used to compose HTML, nesting tags. `#with:` can take a `TagBrush`, a `String`, a `BlockClosure` or a `Widget` as argument.
+
+## Usage example:
+
+    aCanvas a 
+        with: [ aCanvas span with: 'click me' ];
+        onClick: [ window alert: 'clicked!!' ]!
 
 !HTMLCanvas methodsFor: 'accessing'!
 
 root
-    ^root
+	^root
 !
 
 root: aTagBrush
-    root := aTagBrush
+	root := aTagBrush
 !
 
 snippet: anElement
 	"Adds clone of anElement, finds [data-snippet=""*""] subelement
-    and returns TagBrush as if that subelement was just added.
-    
-    Rarely needed to use directly, use `html foo` dynamically installed method
-    for a snippet named foo."
-    
-    | clone caret |
-    
-    clone := anElement asJQuery clone.
-    self with: (TagBrush fromJQuery: clone canvas: self).
-    caret := clone find: '[data-snippet="*"]'.
-    caret toArray isEmpty ifTrue: [ caret := clone ].
-    ^TagBrush fromJQuery: (caret removeAttr: 'data-snippet') canvas: self
+	and returns TagBrush as if that subelement was just added.
+	
+	Rarely needed to use directly, use `html foo` dynamically installed method
+	for a snippet named foo."
+	
+	| clone caret |
+	
+	clone := anElement asJQuery clone.
+	self with: (TagBrush fromJQuery: clone canvas: self).
+	caret := clone find: '[data-snippet="*"]'.
+	caret toArray isEmpty ifTrue: [ caret := clone ].
+	^TagBrush fromJQuery: (caret removeAttr: 'data-snippet') canvas: self
 ! !
 
 !HTMLCanvas methodsFor: 'adding'!
 
 entity: aString
 	"Adds a character representing html entity, eg.
-    html entity: 'copy'
-    adds a copyright sign.
-    If a name does not represent valid HTML entity, error is raised."
+	html entity: 'copy'
+	adds a copyright sign.
+	If a name does not represent valid HTML entity, error is raised."
 	| result |
-    result := ('<span />' asJQuery html: '&', aString, ';') text.
-    result size = 1 ifFalse: [ self error: 'Not an HTML entity: ', aString ].
-    self with: result
+	result := ('<span />' asJQuery html: '&', aString, ';') text.
+	result size = 1 ifFalse: [ self error: 'Not an HTML entity: ', aString ].
+	self with: result
 !
 
 with: anObject
-    ^self root with: anObject
+	^self root with: anObject
 ! !
 
 !HTMLCanvas methodsFor: 'initialization'!
 
 initialize
-    super initialize.
-    root ifNil: [root := TagBrush fromString: 'div' canvas: self]
+	super initialize.
+	root ifNil: [root := TagBrush fromString: 'div' canvas: self]
 !
 
 initializeFromJQuery: aJQuery
-    root := TagBrush fromJQuery: aJQuery canvas: self
+	root := TagBrush fromJQuery: aJQuery canvas: self
 ! !
 
 !HTMLCanvas methodsFor: 'tags'!
 
 a
-    ^self tag: 'a'
+	^self tag: 'a'
 !
 
 abbr
@@ -76,7 +136,7 @@ area
 !
 
 article
-    ^self tag: 'article'
+	^self tag: 'article'
 !
 
 aside
@@ -84,7 +144,7 @@ aside
 !
 
 audio
-    ^self tag: 'audio'
+	^self tag: 'audio'
 !
 
 base
@@ -100,11 +160,11 @@ body
 !
 
 br
-    ^self tag: 'br'
+	^self tag: 'br'
 !
 
 button
-    ^self tag: 'button'
+	^self tag: 'button'
 !
 
 canvas
@@ -120,7 +180,7 @@ cite
 !
 
 code
-    ^self tag: 'code'
+	^self tag: 'code'
 !
 
 col
@@ -152,11 +212,11 @@ details
 !
 
 div
-    ^self tag: 'div'
+	^self tag: 'div'
 !
 
 div: aBlock
-    ^self div with: aBlock
+	^self div with: aBlock
 !
 
 dl
@@ -176,7 +236,7 @@ embed
 !
 
 fieldset
-    ^self tag: 'fieldset'
+	^self tag: 'fieldset'
 !
 
 figcaption
@@ -188,59 +248,59 @@ figure
 !
 
 footer
-    ^self tag: 'footer'
+	^self tag: 'footer'
 !
 
 form
-    ^self tag: 'form'
+	^self tag: 'form'
 !
 
 h1
-    ^self tag: 'h1'
+	^self tag: 'h1'
 !
 
 h1: anObject
-    ^self h1 with: anObject
+	^self h1 with: anObject
 !
 
 h2
-    ^self tag: 'h2'
+	^self tag: 'h2'
 !
 
 h2: anObject
-    ^ self h2 with: anObject
+	^ self h2 with: anObject
 !
 
 h3
-    ^self tag: 'h3'
+	^self tag: 'h3'
 !
 
 h3: anObject
-    ^self h3 with: anObject
+	^self h3 with: anObject
 !
 
 h4
-    ^self tag: 'h4'
+	^self tag: 'h4'
 !
 
 h4: anObject
-    ^self h4 with: anObject
+	^self h4 with: anObject
 !
 
 h5
-    ^self tag: 'h5'
+	^self tag: 'h5'
 !
 
 h5: anObject
-    ^self h5 with: anObject
+	^self h5 with: anObject
 !
 
 h6
-    ^self tag: 'h6'
+	^self tag: 'h6'
 !
 
 h6: anObject
-    ^self h6 with: anObject
+	^self h6 with: anObject
 !
 
 head
@@ -248,7 +308,7 @@ head
 !
 
 header
-    ^self tag: 'header'
+	^self tag: 'header'
 !
 
 hgroup
@@ -256,7 +316,7 @@ hgroup
 !
 
 hr
-    ^self tag: 'hr'
+	^self tag: 'hr'
 !
 
 html
@@ -264,23 +324,23 @@ html
 !
 
 iframe
-    ^self tag: 'iframe'
+	^self tag: 'iframe'
 !
 
 iframe: aString
-    ^self iframe src: aString
+	^self iframe src: aString
 !
 
 img
-    ^self tag: 'img'
+	^self tag: 'img'
 !
 
 img: aString
-    ^self img src: aString
+	^self img src: aString
 !
 
 input
-    ^self tag: 'input'
+	^self tag: 'input'
 !
 
 label
@@ -292,15 +352,15 @@ legend
 !
 
 li
-    ^self tag: 'li'
+	^self tag: 'li'
 !
 
 li: anObject
-    ^self li with: anObject
+	^self li with: anObject
 !
 
 link
-    ^self tag: 'link'
+	^self tag: 'link'
 !
 
 map
@@ -324,7 +384,7 @@ nav
 !
 
 newTag: aString
-    ^TagBrush fromString: aString canvas: self
+	^TagBrush fromString: aString canvas: self
 !
 
 noscript
@@ -336,11 +396,11 @@ object
 !
 
 ol
-    ^self tag: 'ol'
+	^self tag: 'ol'
 !
 
 ol: anObject
-    ^self ol with: anObject
+	^self ol with: anObject
 !
 
 optgroup
@@ -348,7 +408,7 @@ optgroup
 !
 
 option
-    ^self tag: 'option'
+	^self tag: 'option'
 !
 
 output
@@ -356,11 +416,11 @@ output
 !
 
 p
-    ^self tag: 'p'
+	^self tag: 'p'
 !
 
 p: anObject
-    ^self p with: anObject
+	^self p with: anObject
 !
 
 param
@@ -368,7 +428,7 @@ param
 !
 
 pre
-    ^self tag: 'pre'
+	^self tag: 'pre'
 !
 
 progress
@@ -376,15 +436,15 @@ progress
 !
 
 script
-    ^self tag: 'script'
+	^self tag: 'script'
 !
 
 section
-    ^self tag: 'section'
+	^self tag: 'section'
 !
 
 select
-    ^self tag: 'select'
+	^self tag: 'select'
 !
 
 small
@@ -396,11 +456,11 @@ source
 !
 
 span
-    ^self tag: 'span'
+	^self tag: 'span'
 !
 
 span: anObject
-    ^self span with: anObject
+	^self span with: anObject
 !
 
 strong
@@ -412,7 +472,7 @@ strong: anObject
 !
 
 style
-	^ root addBrush:  (StyleTag canvas: self)
+	^ root addBrush: (StyleTag canvas: self)
 !
 
 style: aString
@@ -432,35 +492,35 @@ sup
 !
 
 table
-    ^self tag: 'table'
+	^self tag: 'table'
 !
 
 tag: aString
-    ^root addBrush: (self newTag: aString)
+	^root addBrush: (self newTag: aString)
 !
 
 tbody
-    ^self tag: 'tbody'
+	^self tag: 'tbody'
 !
 
-td 
-    ^self tag: 'td'
+td
+	^self tag: 'td'
 !
 
 textarea
-    ^self tag: 'textarea'
+	^self tag: 'textarea'
 !
 
 tfoot
-    ^self tag: 'tfoot'
+	^self tag: 'tfoot'
 !
 
 th
-    ^self tag: 'th'
+	^self tag: 'th'
 !
 
 thead
-    ^self tag: 'thead'
+	^self tag: 'thead'
 !
 
 time
@@ -472,19 +532,19 @@ title
 !
 
 tr
-    ^self tag: 'tr'
+	^self tag: 'tr'
 !
 
 ul
-    ^self tag: 'ul'
+	^self tag: 'ul'
 !
 
 ul: anObject
-    ^self ul with: anObject
+	^self ul with: anObject
 !
 
 video
-    ^self tag: 'video'
+	^self tag: 'video'
 ! !
 
 !HTMLCanvas class methodsFor: 'instance creation'!
@@ -520,11 +580,11 @@ Object subclass: #HTMLSnippet
 	instanceVariableNames: 'snippets'
 	package: 'Canvas'!
 !HTMLSnippet commentStamp!
-HTMLSnippet instance is the registry of html snippets.
-HTMLSnippet current is the public singleton instance.
+My sole instance is the registry of html snippets.
+`HTMLSnippet current` is the public singleton instance.
 
-At the beginning, it scans the document for any html elements
-with 'data-snippet="foo"' attribute and takes them off the document,
+On startup, it scans the document for any html elements
+with `'data-snippet="foo"'` attribute and takes them off the document,
 remembering them in the store under the specified name.
 It also install method #foo into HTMLCanvas dynamically.
 
@@ -532,30 +592,30 @@ Every html snippet should mark a 'caret', a place where contents
 can be inserted, by 'data-snippet="*"' (a special name for caret).
 For example:
 
-<li data-snippet='menuelement' class='...'><a data-snippet='*'></a></li>
+`<li data-snippet='menuelement' class='...'><a data-snippet='*'></a></li>`
 
 defines a list element with a link inside; the link itself is marked as a caret.
 
 You can later issue
 
-html menuelement href: '/foo'; with: 'A foo'
+`html menuelement href: '/foo'; with: 'A foo'`
 
 to insert the whole snippet and directly manipulate the caret, so it renders:
 
-<li class='...'><a href='/foo'>A foo</a></li>
+`<li class='...'><a href='/foo'>A foo</a></li>`
 
 For a self-careting tags (not very useful, but you do not need to fill class etc.
 you can use
 
-<div class='lots of classes' attr1='one' attr2='two' data-snippet='*bar'></div>
+`<div class='lots of classes' attr1='one' attr2='two' data-snippet='*bar'></div>`
 
 and in code later do:
 
-html bar with: [ xxx ]
+`html bar with: [ xxx ]`
 
 to render
 
-<div class='lots of classes' attr1='one' attr2='two'>...added by xxx...</div>!
+`<div class='lots of classes' attr1='one' attr2='two'>...added by xxx...</div>`!
 
 !HTMLSnippet methodsFor: 'accessing'!
 
@@ -571,23 +631,23 @@ snippets
 
 initializeFromJQuery: aJQuery
 	"Finds and takes out all snippets out of aJQuery.
-    Installs it into self."
-    
+	Installs it into self."
+	
 	(self snippetsFromJQuery: aJQuery) do: [ :each |
-    	self installSnippetFromJQuery: each asJQuery ]
+		self installSnippetFromJQuery: each asJQuery ]
 ! !
 
 !HTMLSnippet methodsFor: 'method generation'!
 
 snippetAt: aString compile: anElement
 	"Method generation for the snippet.
-    The selector is aString, the method block uses anElement"
-    
-    ClassBuilder new
-    	installMethod: ([ :htmlReceiver | htmlReceiver snippet: anElement ] 
-        	currySelf asCompiledMethod: aString)
-        forClass: HTMLCanvas
-        category: '**snippets'
+	The selector is aString, the method block uses anElement"
+	
+	ClassBuilder new
+		installMethod: ([ :htmlReceiver | htmlReceiver snippet: anElement ]
+			currySelf asCompiledMethod: aString)
+		forClass: HTMLCanvas
+		category: '**snippets'
 ! !
 
 !HTMLSnippet methodsFor: 'private'!
@@ -600,20 +660,20 @@ snippetsFromJQuery: aJQuery
 
 installSnippetFromJQuery: element
 	| name |
-    name := element attr: 'data-snippet'.
-    name = '*' ifFalse: [
-    	('^\*' asRegexp test: name) 
-            ifTrue: [ 
-            	name := name allButFirst. 
-                element attr: 'data-snippet' put: '*' ]
-          	ifFalse: [ 
-            	element removeAttr: 'data-snippet' ].
-        self snippetAt: name install: (element detach get: 0) ]
+	name := element attr: 'data-snippet'.
+	name = '*' ifFalse: [
+		('^\*' asRegexp test: name)
+			ifTrue: [
+				name := name allButFirst.
+				element attr: 'data-snippet' put: '*' ]
+			ifFalse: [
+				element removeAttr: 'data-snippet' ].
+		self snippetAt: name install: (element detach get: 0) ]
 !
 
 snippetAt: aString install: anElement
 	self snippets at: aString put: anElement.
-    self snippetAt: aString compile: anElement
+	self snippetAt: aString compile: anElement
 ! !
 
 HTMLSnippet class instanceVariableNames: 'current'!
@@ -621,15 +681,15 @@ HTMLSnippet class instanceVariableNames: 'current'!
 !HTMLSnippet class methodsFor: 'initialization'!
 
 ensureCurrent
-	current ifNil: [ 
-    	current := super new
+	current ifNil: [
+		current := super new
 			initializeFromJQuery: document asJQuery;
 			yourself ]
 !
 
 initialize
 	super initialize.
-    self isDOMAvailable ifTrue: [
+	self isDOMAvailable ifTrue: [
 		self ensureCurrent ]
 ! !
 
@@ -650,54 +710,88 @@ new
 Object subclass: #TagBrush
 	instanceVariableNames: 'canvas element'
 	package: 'Canvas'!
+!TagBrush commentStamp!
+I am a brush for building a single DOM element (which I hold onto).
+
+All tags but `<style>` are instances of me (see the `StyleBrush` class).
+
+## API
+
+1. Nesting
+
+    Use `#with:` to nest tags. `#with:` can take aString, `TagBrush` instance, a `Widget` or block closure as parameter.
+
+    Example: `aTag with: aString with: aCanvas div`
+
+2. Events
+
+    The `events` protocol contains all methods related to events (delegating event handling to jQuery).
+
+    Example: `aTag onClick: [ window alert: 'clicked' ]`
+
+3. Attributes
+
+    The `attribute` protocol contains methods for attribute manipulation (delegating to jQuery too).
+
+    Example: `aTag at: 'value' put: 'hello world'`
+
+4. Raw access and jQuery
+
+    The `#element` method can be used to access to JavaScript DOM element object.
+
+    Example: `aTag element cssStyle`
+
+    Use `#asJQuery` to access to the receiver converted into a jQuery object.
+
+    Example: `aTag asJQuery css: 'color' value: 'red'`!
 
 !TagBrush methodsFor: 'accessing'!
 
 element
-    ^element
+	^element
 ! !
 
 !TagBrush methodsFor: 'adding'!
 
 addBrush: aTagBrush
-    self appendChild: aTagBrush element.
-    ^aTagBrush
+	self appendChild: aTagBrush element.
+	^aTagBrush
 !
 
 append: anObject
-    anObject appendToBrush: self
+	anObject appendToBrush: self
 !
 
 appendBlock: aBlock
-    | root |
-    root := canvas root.
-    canvas root: self.
-    aBlock value: canvas.
-    canvas root: root
+	| root |
+	root := canvas root.
+	canvas root: self.
+	aBlock value: canvas.
+	canvas root: root
 !
 
 appendChild: anElement
-	"In IE7 and IE8 appendChild fails on several node types. So we need to check" 
- 	<var element=self['@element'];
- 	if (null == element.canHaveChildren || element.canHaveChildren) {
+	"In IE7 and IE8 appendChild fails on several node types. So we need to check"
+	<var element=self['@element'];
+	if (null == element.canHaveChildren || element.canHaveChildren) {
 		element.appendChild(anElement);
- 	} else {
- 		element.text = String(element.text) +  anElement.innerHTML;
- 	} >
+	} else {
+		element.text = String(element.text) + anElement.innerHTML;
+	} >
 !
 
 appendString: aString
-    self appendChild: (self createTextNodeFor: aString)
+	self appendChild: (self createTextNodeFor: aString)
 !
 
 appendToBrush: aTagBrush
-    aTagBrush addBrush: self
+	aTagBrush addBrush: self
 !
 
 contents: anObject
-    self 
+	self
 	empty;
-   	append: anObject
+	append: anObject
 !
 
 empty
@@ -705,7 +799,7 @@ empty
 !
 
 with: anObject
-    self append: anObject
+	self append: anObject
 ! !
 
 !TagBrush methodsFor: 'attributes'!
@@ -727,11 +821,11 @@ alt: aString
 !
 
 at: aString put: aValue
-    <self['@element'].setAttribute(aString, aValue)>
+	<self['@element'].setAttribute(aString, aValue)>
 !
 
 class: aString
-      <self['@element'].className = aString>
+	<self['@element'].className = aString>
 !
 
 cols: aString
@@ -755,7 +849,7 @@ for: aString
 !
 
 height: aString
-    self  at: 'height' put: aString
+	self at: 'height' put: aString
 !
 
 hidden
@@ -763,15 +857,15 @@ hidden
 !
 
 href: aString
-    self at: 'href' put: aString
+	self at: 'href' put: aString
 !
 
 id: aString
-    self at: 'id' put: aString
+	self at: 'id' put: aString
 !
 
 media: aString
-    self at: 'media' put: aString
+	self at: 'media' put: aString
 !
 
 method: aString
@@ -787,11 +881,11 @@ placeholder: aString
 !
 
 rel: aString
-    self  at: 'rel' put: aString
+	self at: 'rel' put: aString
 !
 
 removeAt: aString
-    <self['@element'].removeAttribute(aString)>
+	<self['@element'].removeAttribute(aString)>
 !
 
 rows: aString
@@ -799,11 +893,11 @@ rows: aString
 !
 
 src: aString
-    self  at: 'src' put: aString
+	self at: 'src' put: aString
 !
 
 style: aString
-    self at: 'style' put: aString
+	self at: 'style' put: aString
 !
 
 tabindex: aNumber
@@ -815,11 +909,11 @@ target: aString
 !
 
 title: aString
-    self at: 'title' put: aString
+	self at: 'title' put: aString
 !
 
 type: aString
-    self at: 'type' put: aString
+	self at: 'type' put: aString
 !
 
 valign: aString
@@ -827,31 +921,31 @@ valign: aString
 !
 
 value: aString
-    self  at: 'value' put: aString
+	self at: 'value' put: aString
 !
 
 width: aString
-    self  at: 'width' put: aString
+	self at: 'width' put: aString
 ! !
 
 !TagBrush methodsFor: 'converting'!
 
 asJQuery
-    ^window jQuery: self element
+	^self element asJQuery
 ! !
 
 !TagBrush methodsFor: 'events'!
 
 onBlur: aBlock
-    self asJQuery bind: 'blur' do: aBlock
+	self asJQuery bind: 'blur' do: aBlock
 !
 
 onChange: aBlock
-    self asJQuery bind: 'change' do: aBlock
+	self asJQuery bind: 'change' do: aBlock
 !
 
 onClick: aBlock
-    self asJQuery bind: 'click' do: aBlock
+	self asJQuery bind: 'click' do: aBlock
 !
 
 onDblClick: aBlock
@@ -859,7 +953,7 @@ onDblClick: aBlock
 !
 
 onFocus: aBlock
-    self asJQuery bind: 'focus' do: aBlock
+	self asJQuery bind: 'focus' do: aBlock
 !
 
 onFocusIn: aBlock
@@ -875,15 +969,15 @@ onHover: aBlock
 !
 
 onKeyDown: aBlock
-    self asJQuery bind: 'keydown' do: aBlock
+	self asJQuery bind: 'keydown' do: aBlock
 !
 
 onKeyPress: aBlock
-    self asJQuery bind: 'keypress' do: aBlock
+	self asJQuery bind: 'keypress' do: aBlock
 !
 
 onKeyUp: aBlock
-    self asJQuery bind: 'keyup' do: aBlock
+	self asJQuery bind: 'keyup' do: aBlock
 !
 
 onMouseDown: aBlock
@@ -929,16 +1023,20 @@ onUnload: aBlock
 !TagBrush methodsFor: 'initialization'!
 
 initializeFromJQuery: aJQuery canvas: aCanvas
-    element := aJQuery get: 0.
-    canvas := aCanvas
+	element := aJQuery get: 0.
+	canvas := aCanvas
 !
 
 initializeFromString: aString canvas: aCanvas
-    element := self createElementFor: aString.
-    canvas := aCanvas
+	element := self createElementFor: aString.
+	canvas := aCanvas
 ! !
 
 !TagBrush methodsFor: 'private'!
+
+appendDocumentFragment: anElement
+	<var element=self['@element'].appendChild(anElement["@element"])>
+!
 
 createElementFor: aString
 	<return document.createElement(String(aString))>
@@ -951,24 +1049,51 @@ createTextNodeFor: aString
 !TagBrush class methodsFor: 'instance creation'!
 
 fromJQuery: aJQuery canvas: aCanvas
-    ^self new
-	initializeFromJQuery: aJQuery canvas: aCanvas;
-	yourself
+	^self new
+		initializeFromJQuery: aJQuery canvas: aCanvas;
+		yourself
 !
 
 fromString: aString canvas: aCanvas
-    ^self new
+	^self new
 	initializeFromString: aString canvas: aCanvas;
 	yourself
 ! !
 
+TagBrush subclass: #DocumentFragmentTag
+	instanceVariableNames: ''
+	package: 'Canvas'!
+
+!DocumentFragmentTag methodsFor: 'initialization'!
+
+initializeFromCanvas: aCanvas
+	canvas := aCanvas.
+	element := self createDocumentFragment
+! !
+
+!DocumentFragmentTag methodsFor: 'private'!
+
+createDocumentFragment
+	<return document.createDocumentFragment()>
+! !
+
+!DocumentFragmentTag class methodsFor: 'instance creation'!
+
+canvas: aCanvas
+	^ self new
+		initializeFromCanvas: aCanvas;
+		yourself
+! !
+
 TagBrush subclass: #StyleTag
-	instanceVariableNames: 'canvas element'
+	instanceVariableNames: ''
 	package: 'Canvas'!
 !StyleTag commentStamp!
-I'm a <style> tag use to inline CSS or load a stylesheet.
+I'm a `<style>` tag use to inline CSS or load a stylesheet.
 
-For inlining handle IE compatibility problems.!
+## Motivation
+
+The need for a specific class comes from Internet Explorer compatibility issues.!
 
 !StyleTag methodsFor: 'adding'!
 
@@ -981,49 +1106,67 @@ with: aString
 !StyleTag class methodsFor: 'instance creation'!
 
 canvas: aCanvas
-    ^self new
+	^self new
 	initializeFromString: 'style' canvas: aCanvas;
 	yourself
 ! !
 
-Object subclass: #Widget
+InterfacingObject subclass: #Widget
 	instanceVariableNames: ''
 	package: 'Canvas'!
+!Widget commentStamp!
+I am a presenter building HTML. Subclasses are typically reusable components.
+
+## API
+
+Use `#renderContentOn:` to build HTML. (See `HTMLCanvas` and `TagBrush` classes for more about building HTML).
+
+To add a widget to the page, the convenience method `#appendToJQuery:` is very useful.
+
+Exemple: 
+
+    Counter new appendToJQuery: 'body' asJQuery!
 
 !Widget methodsFor: 'adding'!
 
 appendToBrush: aTagBrush
-    self appendToJQuery: aTagBrush asJQuery
+	self appendToJQuery: aTagBrush asJQuery
 !
 
 appendToJQuery: aJQuery
-   self renderOn: (HTMLCanvas onJQuery: aJQuery)
+	self renderOn: (HTMLCanvas onJQuery: aJQuery)
 ! !
 
 !Widget methodsFor: 'rendering'!
 
 renderOn: html
-    self
+	self
+! !
+
+!Widget class methodsFor: 'helios'!
+
+heliosClass
+	^ 'widget'
 ! !
 
 !Object methodsFor: '*Canvas'!
 
 appendToBrush: aTagBrush
-    aTagBrush append: self asString
+	aTagBrush append: self asString
 !
 
 appendToJQuery: aJQuery
-    aJQuery append: self asString
+	aJQuery append: self asString
 ! !
 
 !BlockClosure methodsFor: '*Canvas'!
 
 appendToBrush: aTagBrush
-    aTagBrush appendBlock: self
+	aTagBrush appendBlock: self
 !
 
 appendToJQuery: aJQuery
-    self value: (HTMLCanvas onJQuery: aJQuery)
+	self value: (HTMLCanvas onJQuery: aJQuery)
 ! !
 
 !CharacterArray methodsFor: '*Canvas'!
@@ -1035,20 +1178,20 @@ asSnippet
 !String methodsFor: '*Canvas'!
 
 appendToBrush: aTagBrush
-    aTagBrush appendString: self
+	aTagBrush appendString: self
 !
 
 appendToJQuery: aJQuery
-    aJQuery append: self
+	aJQuery append: self
 !
 
 asJQuery
-    <return jQuery(String(self))>
+	<return jQuery(String(self))>
 ! !
 
 !JSObjectProxy methodsFor: '*Canvas'!
 
 asJQuery
-    <return jQuery(self['@jsObject'])>
+	<return jQuery(self['@jsObject'])>
 ! !
 

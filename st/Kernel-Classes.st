@@ -1,63 +1,80 @@
-Smalltalk current createPackage: 'Kernel-Classes' properties: #{}!
+Smalltalk current createPackage: 'Kernel-Classes'!
 Object subclass: #Behavior
 	instanceVariableNames: ''
 	package: 'Kernel-Classes'!
 !Behavior commentStamp!
-Behavior is the superclass of all class objects. 
+I am the superclass of all class objects.
 
-It defines the protocol for creating instances of a class with `#basicNew` and `#new` (see `boot.js` for class constructors details).
-Instances know about the subclass/superclass relationships between classes, contain the description that instances are created from, 
+I define the protocol for creating instances of a class with `#basicNew` and `#new` (see `boot.js` for class constructors details).
+
+My instances know about the subclass/superclass relationships between classes, contain the description that instances are created from,
 and hold the method dictionary that's associated with each class.
 
-Behavior also  provides methods for compiling methods, examining the method dictionary, and iterating over the class hierarchy.!
+I also provides methods for compiling methods, examining the method dictionary, and iterating over the class hierarchy.!
 
 !Behavior methodsFor: 'accessing'!
+
+>> aString
+	^ self methodAt: aString
+!
 
 allInstanceVariableNames
 	| result |
 	result := self instanceVariableNames copy.
 	self superclass ifNotNil: [
-	    result addAll: self superclass allInstanceVariableNames].
+		result addAll: self superclass allInstanceVariableNames].
 	^result
 !
 
+allSelectors
+	^ self allSuperclasses
+		inject: self selectors
+		into: [ :acc :each | acc addAll: each selectors; yourself ]
+!
+
 allSubclasses
-	| result |
-	result := self subclasses.
-	self subclasses do: [:each |
-	    result addAll: each allSubclasses].
-	^result
+	"Answer an collection of the receiver's and the receiver's descendent's subclasses. "
+
+	| subclasses index |
+	
+	subclasses := self subclasses.
+	index := 1.
+	[ index > subclasses size ]
+		whileFalse: [ subclasses addAll: (subclasses at: index) subclasses.
+			index := index + 1 ].
+
+	^ subclasses
 !
 
 allSuperclasses
 	
-    self superclass ifNil: [ ^ #() ].
-    
-	^ (OrderedCollection with: self superclass) 
-    	addAll: self superclass allSuperclasses;
-        yourself
+	self superclass ifNil: [ ^ #() ].
+	
+	^ (OrderedCollection with: self superclass)
+		addAll: self superclass allSuperclasses;
+		yourself
 !
 
 comment
-    ^(self basicAt: 'comment') ifNil: ['']
+	^(self basicAt: 'comment') ifNil: ['']
 !
 
 comment: aString
-    self basicAt: 'comment' put: aString.
-    SystemAnnouncer current
-    	announce: (ClassCommentChanged new
-        	theClass: self;
-            yourself)
+	self basicAt: 'comment' put: aString.
+	SystemAnnouncer current
+		announce: (ClassCommentChanged new
+			theClass: self;
+			yourself)
 !
 
 commentStamp
-    ^ClassCommentReader new
+	^ClassCommentReader new
 	class: self;
 	yourself
 !
 
 commentStamp: aStamp prior: prior
-        ^self commentStamp
+		^self commentStamp
 !
 
 definition
@@ -73,19 +90,19 @@ lookupSelector: selector
 	Return the corresponding method if found.
 	Otherwise chase the superclass chain and try again.
 	Return nil if no method is found."
-    
+	
 	| lookupClass |
-    
+	
 	lookupClass := self.
 	[ lookupClass = nil ] whileFalse: [
-      	(lookupClass includesSelector: selector)
+		(lookupClass includesSelector: selector)
 				ifTrue: [ ^ lookupClass methodAt: selector ].
 			lookupClass := lookupClass superclass ].
 	^ nil
 !
 
-methodAt: aSymbol
-	^ self methodDictionary at: aSymbol asString
+methodAt: aString
+	^ self methodDictionary at: aString
 !
 
 methodDictionary
@@ -105,8 +122,8 @@ methods
 
 methodsFor: aString
 	^ClassCategoryReader new
-	    class: self category: aString;
-	    yourself
+		class: self category: aString;
+		yourself
 !
 
 methodsFor: aString stamp: aStamp
@@ -126,21 +143,24 @@ organization
 	^ self basicAt: 'organization'
 !
 
-protocols
-   ^ self organization elements sorted
+ownMethods
+	"Answer the methods of the receiver that are not package extensions"
+
+	^ (self ownProtocols 
+		inject: OrderedCollection new
+		into: [ :acc :each | acc, (self methodsInProtocol: each) ])
+			sorted: [ :a :b | a selector <= b selector ]
 !
 
-protocolsDo: aBlock
-	"Execute aBlock for each method category with
-	its collection of methods in the sort order of category name."
+ownProtocols
+	"Answer the protocols of the receiver that are not package extensions"
 
-	| methodsByCategory |
-	methodsByCategory := HashedCollection new.
-	self methodDictionary values do: [:m |
-		(methodsByCategory at: m category ifAbsentPut: [Array new])
- 			add: m]. 
-	self protocols do: [:category |
-		aBlock value: category value: (methodsByCategory at: category)]
+	^ self protocols reject: [ :each |
+		each match: '^\*' ]
+!
+
+protocols
+	^ self organization elements sorted
 !
 
 prototype
@@ -152,7 +172,7 @@ selectors
 !
 
 subclasses
-	<return smalltalk.subclasses(self)>
+	self subclassResponsibility
 !
 
 superclass
@@ -174,34 +194,81 @@ withAllSubclasses
 !Behavior methodsFor: 'compiling'!
 
 addCompiledMethod: aMethod
+	| oldMethod announcement |
+	
+	oldMethod := self methodDictionary
+		at: aMethod selector
+		ifAbsent: [ nil ].
+	
+	(self protocols includes: aMethod protocol)
+		ifFalse: [ self organization addElement: aMethod protocol ].
+
 	self basicAddCompiledMethod: aMethod.
-    
-    SystemAnnouncer current
-   		announce: (MethodAdded new
-        	theClass: self;
-            method: aMethod;
-            yourself)
+	
+	announcement := oldMethod
+		ifNil: [
+			MethodAdded new
+					method: aMethod;
+					yourself ]
+		ifNotNil: [
+			MethodModified new
+					oldMethod: oldMethod;
+					method: aMethod;
+					yourself ].
+					
+					
+	SystemAnnouncer current
+				announce: announcement
 !
 
 compile: aString
-	self compile: aString category: ''
+	^ self compile: aString category: ''
 !
 
 compile: aString category: anotherString
-	Compiler new
-		install: aString 
-        forClass: self 
-        category: anotherString
+	^ Compiler new
+		install: aString
+		forClass: self
+		category: anotherString
+!
+
+recompile
+	^ Compiler new recompile: self
 !
 
 removeCompiledMethod: aMethod
 	self basicRemoveCompiledMethod: aMethod.
-    
-    SystemAnnouncer current
-   		announce: (MethodRemoved new
-        	theClass: self;
-            method: aMethod;
-            yourself)
+	
+	self methods
+		detect: [ :each | each protocol = aMethod protocol ]
+		ifNone: [ self organization removeElement: aMethod protocol ].
+	
+	SystemAnnouncer current
+		announce: (MethodRemoved new
+			method: aMethod;
+			yourself)
+! !
+
+!Behavior methodsFor: 'enumerating'!
+
+allSubclassesDo: aBlock
+	"Evaluate the argument, aBlock, for each of the receiver's subclasses."
+
+	self allSubclasses do: [ :each |
+    	aBlock value: each ]
+!
+
+protocolsDo: aBlock
+	"Execute aBlock for each method category with
+	its collection of methods in the sort order of category name."
+
+	| methodsByCategory |
+	methodsByCategory := HashedCollection new.
+	self methodDictionary values do: [:m |
+		(methodsByCategory at: m category ifAbsentPut: [Array new])
+			add: m].
+	self protocols do: [:category |
+		aBlock value: category value: (methodsByCategory at: category)]
 ! !
 
 !Behavior methodsFor: 'instance creation'!
@@ -217,14 +284,11 @@ new
 !Behavior methodsFor: 'private'!
 
 basicAddCompiledMethod: aMethod
-	<smalltalk.addMethod(aMethod.selector._asSelector(), aMethod, self)>
+	<smalltalk.addMethod(aMethod, self)>
 !
 
 basicRemoveCompiledMethod: aMethod
-	<
-    	smalltalk.removeMethod(aMethod)
-		smalltalk.init(self);
-    >
+	<smalltalk.removeMethod(aMethod,self)>
 ! !
 
 !Behavior methodsFor: 'testing'!
@@ -234,22 +298,34 @@ canUnderstand: aSelector
 		self superclass notNil and: [self superclass canUnderstand: aSelector]]
 !
 
-includesSelector: aSymbol
-	^ self methodDictionary includesKey: aSymbol asString
+includesBehavior: aClass
+	^ self == aClass or: [
+			self inheritsFrom: aClass ]
+!
+
+includesSelector: aString
+	^ self methodDictionary includesKey: aString
 !
 
 inheritsFrom: aClass
-	^aClass allSubclasses includes: self
+	self superclass ifNil: [ ^ false ].
+
+	^ aClass == self superclass or: [ 
+		self superclass inheritsFrom: aClass ]
+!
+
+isBehavior
+	^ true
 ! !
 
 Behavior subclass: #Class
 	instanceVariableNames: ''
 	package: 'Kernel-Classes'!
 !Class commentStamp!
-Class is __the__ class object. 
+I am __the__ class object.
 
-Instances are the classes of the system.
-Class creation is done throught a `ClassBuilder`!
+My instances are the classes of the system.
+Class creation is done throught a `ClassBuilder` instance.!
 
 !Class methodsFor: 'accessing'!
 
@@ -259,32 +335,49 @@ category
 
 definition
 	^ String streamContents: [ :stream |
-		stream 
-	    	nextPutAll: self superclass asString;
-	    	nextPutAll: ' subclass: #';
-	    	nextPutAll: self name;
-	    	nextPutAll: String lf, String tab;
-	    	nextPutAll: 'instanceVariableNames: '''.
-		self instanceVariableNames 
-          	do: [ :each | stream nextPutAll: each ] 
-	    	separatedBy: [ stream nextPutAll: ' ' ].
 		stream
-	    	nextPutAll: '''', String lf, String tab;
-	    	nextPutAll: 'package: ''';
-	    	nextPutAll: self category;
-	    	nextPutAll: '''' ]
+			nextPutAll: self superclass asString;
+			nextPutAll: ' subclass: #';
+			nextPutAll: self name;
+			nextPutAll: String lf, String tab;
+			nextPutAll: 'instanceVariableNames: '''.
+		self instanceVariableNames
+			do: [ :each | stream nextPutAll: each ]
+			separatedBy: [ stream nextPutAll: ' ' ].
+		stream
+			nextPutAll: '''', String lf, String tab;
+			nextPutAll: 'package: ''';
+			nextPutAll: self category;
+			nextPutAll: '''' ]
 !
 
 package
-	<return self.pkg>
+	^ self basicAt: 'pkg'
 !
 
 package: aPackage
-	<self.pkg = aPackage>
+	| oldPackage |
+	
+	self package = aPackage ifTrue: [ ^ self ].
+	
+	oldPackage := self package.
+	
+	self basicAt: 'pkg' put: aPackage.
+	oldPackage organization removeElement: self.
+	aPackage organization addElement: self.
+
+	SystemAnnouncer current announce: (ClassMoved new
+		theClass: self;
+		oldPackage: oldPackage;
+		yourself)
 !
 
 rename: aString
 	ClassBuilder new renameClass: self to: aString
+!
+
+subclasses
+	<return self.subclasses._copy()>
 ! !
 
 !Class methodsFor: 'class creation'!
@@ -307,7 +400,7 @@ subclass: aString instanceVariableNames: aString2 classVariableNames: classVars 
 
 subclass: aString instanceVariableNames: aString2 package: aString3
 	^ClassBuilder new
-	    superclass: self subclass: aString asString instanceVariableNames: aString2 package: aString3
+		superclass: self subclass: aString asString instanceVariableNames: aString2 package: aString3
 ! !
 
 !Class methodsFor: 'converting'!
@@ -318,8 +411,8 @@ asJavascript
 
 !Class methodsFor: 'printing'!
 
-printString
-	^self name
+printOn: aStream
+	aStream nextPutAll: self name
 ! !
 
 !Class methodsFor: 'testing'!
@@ -332,22 +425,20 @@ Behavior subclass: #Metaclass
 	instanceVariableNames: ''
 	package: 'Kernel-Classes'!
 !Metaclass commentStamp!
-Metaclass is the root of the class hierarchy.
+I am the root of the class hierarchy.
 
-Metaclass instances are metaclasses, one for each real class. 
-Metaclass instances have a single instance, which they hold onto, which is the class that they are the metaclass of.!
+My instances are metaclasses, one for each real class, and have a single instance, which they hold onto: the class that they are the metaclass of.!
 
 !Metaclass methodsFor: 'accessing'!
 
 definition
 	^ String streamContents: [ :stream |
-		stream 
-	   	 	nextPutAll: self asString;
-	    	nextPutAll: ' class ';
-	    	nextPutAll: 'instanceVariableNames: '''.
+		stream
+			nextPutAll: self asString;
+			nextPutAll: ' instanceVariableNames: '''.
 		self instanceVariableNames
-	    	do: [ :each | stream nextPutAll: each ]
-	    	separatedBy: [ stream nextPutAll: ' ' ].
+			do: [ :each | stream nextPutAll: each ]
+			separatedBy: [ stream nextPutAll: ' ' ].
 		stream nextPutAll: '''' ]
 !
 
@@ -357,7 +448,13 @@ instanceClass
 
 instanceVariableNames: aCollection
 	ClassBuilder new
-	    class: self instanceVariableNames: aCollection
+		class: self instanceVariableNames: aCollection
+!
+
+subclasses
+	^ (self instanceClass subclasses 
+		select: [ :each | each isMetaclass not ])
+		collect: [ :each | each theMetaClass ]
 !
 
 theMetaClass
@@ -376,8 +473,10 @@ asJavascript
 
 !Metaclass methodsFor: 'printing'!
 
-printString
-	^self instanceClass name, ' class'
+printOn: aStream
+	aStream
+		nextPutAll: self instanceClass name;
+		nextPutAll: ' class'
 ! !
 
 !Metaclass methodsFor: 'testing'!
@@ -390,83 +489,178 @@ Object subclass: #ClassBuilder
 	instanceVariableNames: ''
 	package: 'Kernel-Classes'!
 !ClassBuilder commentStamp!
-ClassBuilder is responsible for compiling new classes or modifying existing classes in the system.
+I am responsible for compiling new classes or modifying existing classes in the system.
 
-Rather than using ClassBuilder directly to compile a class, use `Class >> subclass:instanceVariableNames:package:`.!
+Rather than using me directly to compile a class, use `Class >> subclass:instanceVariableNames:package:`.!
 
-!ClassBuilder methodsFor: 'api'!
+!ClassBuilder methodsFor: 'accessing'!
 
-class: aClass instanceVariableNames: aString
-	self basicClass: aClass instanceVariableNames: aString.
-    self setupClass: aClass.
-    
-    SystemAnnouncer current
-    	announce: (ClassDefinitionChanged new
-        	theClass: aClass;
-            yourself)
+instanceVariableNamesFor: aString
+	^(aString tokenize: ' ') reject: [ :each | each isEmpty ]
+! !
+
+!ClassBuilder methodsFor: 'class definition'!
+
+addSubclassOf: aClass named: className instanceVariableNames: aCollection package: packageName
+	| theClass thePackage |
+	
+	theClass := Smalltalk current at: className.
+	thePackage := self createPackageNamed: packageName.
+	
+	theClass ifNotNil: [
+		theClass package: thePackage.
+		theClass superclass == aClass ifFalse: [
+			^ self
+				migrateClassNamed: className
+				superclass: aClass
+				instanceVariableNames: aCollection
+				package: packageName ] ].
+		
+	^ self
+		basicAddSubclassOf: aClass
+		named: className
+		instanceVariableNames: aCollection
+		package: packageName
 !
+
+class: aClass instanceVariableNames: ivarNames
+	self basicClass: aClass instanceVariableNames: ivarNames.
+	self setupClass: aClass.
+	
+	SystemAnnouncer current
+		announce: (ClassDefinitionChanged new
+			theClass: aClass;
+			yourself)
+!
+
+superclass: aClass subclass: className
+	^self superclass: aClass subclass: className instanceVariableNames: '' package: nil
+!
+
+superclass: aClass subclass: className instanceVariableNames: ivarNames package: packageName
+	| newClass |
+	
+	newClass := self addSubclassOf: aClass
+		named: className instanceVariableNames: (self instanceVariableNamesFor: ivarNames)
+		package: (packageName ifNil: ['unclassified']).
+	self setupClass: newClass.
+	
+	SystemAnnouncer current
+		announce: (ClassAdded new
+			theClass: newClass;
+			yourself).
+	
+	^newClass
+! !
+
+!ClassBuilder methodsFor: 'class migration'!
+
+migrateClass: aClass superclass: anotherClass
+	^ self
+		migrateClassNamed: aClass name
+		superclass: anotherClass
+		instanceVariableNames: aClass instanceVariableNames
+		package: aClass package name
+!
+
+migrateClassNamed: className superclass: aClass instanceVariableNames: aCollection package: packageName
+	| oldClass newClass tmp |
+	
+	tmp := 'new*', className.
+	oldClass := Smalltalk current at: className.
+	
+	newClass := self
+		addSubclassOf: aClass
+		named: tmp
+		instanceVariableNames: aCollection
+		package: packageName.
+
+	self basicSwapClassNames: oldClass with: newClass.
+
+	[ self copyClass: oldClass to: newClass ]
+		on: Error
+		do: [ :exception |
+			self
+				basicSwapClassNames: oldClass with: newClass;
+				basicRemoveClass: newClass.
+			exception signal ].
+
+	self
+		rawRenameClass: oldClass to: tmp;
+		rawRenameClass: newClass to: className.
+
+	oldClass subclasses 
+		do: [ :each | self migrateClass: each superclass: newClass ]
+		displayingProgress: 'Recompiling ', newClass name, '...'.
+
+	self basicRemoveClass: oldClass.
+	
+	SystemAnnouncer current announce: (ClassMigrated new
+		theClass: newClass;
+		oldClass: oldClass;
+		yourself).
+	
+	^newClass
+!
+
+renameClass: aClass to: className
+	self basicRenameClass: aClass to: className.
+	
+	"Recompile the class to fix potential issues with super sends"
+	aClass recompile.
+	
+	SystemAnnouncer current
+		announce: (ClassRenamed new
+			theClass: aClass;
+			yourself)
+! !
+
+!ClassBuilder methodsFor: 'copying'!
+
+copyClass: aClass named: className
+	| newClass |
+
+	newClass := self
+		addSubclassOf: aClass superclass
+		named: className
+		instanceVariableNames: aClass instanceVariableNames
+		package: aClass package name.
+
+	self copyClass: aClass to: newClass.
+	
+	SystemAnnouncer current
+		announce: (ClassAdded new
+			theClass: newClass;
+			yourself).
+	
+	^newClass
+!
+
+copyClass: aClass to: anotherClass
+
+	anotherClass comment: aClass comment.
+
+	aClass methodDictionary values do: [ :each |
+		Compiler new install: each source forClass: anotherClass category: each category ].
+
+	self basicClass: anotherClass class instanceVariables: aClass class instanceVariableNames.
+
+	aClass class methodDictionary values do: [ :each |
+		Compiler new install: each source forClass: anotherClass class category: each category ].
+
+	self setupClass: anotherClass
+! !
+
+!ClassBuilder methodsFor: 'method definition'!
 
 installMethod: aCompiledMethod forClass: aBehavior category: aString
 	aCompiledMethod category: aString.
 	aBehavior addCompiledMethod: aCompiledMethod.
-    self setupClass: aBehavior.
+	self setupClass: aBehavior.
 	^aCompiledMethod
-!
-
-renameClass: aClass to: aString
-	self basicRenameClass: aClass to: aString.
-    
-    SystemAnnouncer current
-    	announce: (ClassRenamed new
-        	theClass: aClass;
-            yourself)
-!
-
-setupClass: aClass
-	<smalltalk.init(aClass);>
-!
-
-superclass: aClass subclass: aString
-	^self superclass: aClass subclass: aString instanceVariableNames: '' package: nil
-!
-
-superclass: aClass subclass: aString instanceVariableNames: aString2 package: aString3
-	| newClass |
-	
-    newClass := self addSubclassOf: aClass
-		named: aString instanceVariableNames: (self instanceVariableNamesFor: aString2)
-		package: (aString3 ifNil: ['unclassified']).
-	self setupClass: newClass.
-    
-    SystemAnnouncer current 
-    	announce: (ClassAdded new
-        	theClass: newClass;
-            yourself).
-    
-	^newClass
 ! !
 
 !ClassBuilder methodsFor: 'private'!
-
-addSubclassOf: aClass named: aString instanceVariableNames: aCollection package: packageName
-    | theClass |
-    
-    theClass := Smalltalk current at: aString.
-    
-   	theClass ifNotNil: [ 
-    	theClass superclass == aClass ifFalse: [
-    		^ self 
-        		migrateClassNamed: aString 
-           	 	superclass: aClass 
-           	 	instanceVariableNames: aCollection 
-            	package: packageName ] ].
-
-	^ self 
-    	basicAddSubclassOf: aClass 
-        named: aString 
-        instanceVariableNames: aCollection 
-        package: packageName
-!
 
 basicAddSubclassOf: aClass named: aString instanceVariableNames: aCollection package: packageName
 	<
@@ -497,82 +691,36 @@ basicRenameClass: aClass to: aString
 	>
 !
 
-copyClass: aClass named: aString
-	| newClass |
-
-	newClass := self 
-		addSubclassOf: aClass superclass
-		named: aString 
-		instanceVariableNames: aClass instanceVariableNames 
-		package: aClass package name.
-
-	self copyClass: aClass to: newClass.
-    
-	^newClass
+basicSwapClassNames: aClass with: anotherClass
+	<
+		var tmp = aClass.className;
+		aClass.className = anotherClass.className;
+		anotherClass.className = tmp;
+	>
 !
 
-copyClass: aClass to: anotherClass
-
-	anotherClass comment: aClass comment.
-
-	aClass methodDictionary values do: [ :each |
-		Compiler new install: each source forClass: anotherClass category: each category ].
-
-	self basicClass: anotherClass class instanceVariables: aClass class instanceVariableNames.
-
-	aClass class methodDictionary values do: [ :each |
-		Compiler new install: each source forClass: anotherClass class category: each category ].
-
-	self setupClass: anotherClass
+createPackageNamed: aString
+	^ Package named: aString ifAbsent: [
+		Smalltalk current createPackage: aString ]
 !
 
-instanceVariableNamesFor: aString
-	^(aString tokenize: ' ') reject: [ :each | each isEmpty ]
-!
+rawRenameClass: aClass to: aString
+	<
+		smalltalk[aString] = aClass;
+	>
+! !
 
-migrateClass: aClass superclass: anotherClass
-	console log: aClass name.
-	self 
-    	migrateClassNamed: aClass name
-        superclass: anotherClass
-        instanceVariableNames: aClass instanceVariableNames
-        package: aClass package name
-!
+!ClassBuilder methodsFor: 'public'!
 
-migrateClassNamed: aString superclass: aClass instanceVariableNames: aCollection package: packageName
-	| oldClass newClass |
-    
-    oldClass := Smalltalk current at: aString.
-    
-    "Rename the old class for existing instances"
-	self basicRenameClass: oldClass to: 'Old', aString.
-    
-    newClass := self 
-		addSubclassOf: aClass
-		named: aString 
-		instanceVariableNames: aCollection
-		package: packageName.
-
-	oldClass subclasses do: [ :each |
-    	self migrateClass: each superclass: newClass ].
-
-    [ self copyClass: oldClass to: newClass ] 
-    	on: Error
-        do: [ :exception |
-        	self 
-            	basicRemoveClass: newClass;
-            	basicRenameClass: oldClass to: aString.
-            exception signal ].
-            
-    self basicRemoveClass: oldClass.
-	^newClass
+setupClass: aClass
+	<smalltalk.init(aClass);>
 ! !
 
 Object subclass: #ClassCategoryReader
 	instanceVariableNames: 'class category'
 	package: 'Kernel-Classes'!
 !ClassCategoryReader commentStamp!
-ClassCategoryReader represents a mechanism for retrieving class descriptions stored on a file.!
+I provide a mechanism for retrieving class descriptions stored on a file in the Smalltalk chunk format.!
 
 !ClassCategoryReader methodsFor: 'accessing'!
 
@@ -587,7 +735,7 @@ scanFrom: aChunkParser
 	| chunk |
 	[chunk := aChunkParser nextChunk.
 	chunk isEmpty] whileFalse: [
-	    self compileMethod: chunk].
+		self compileMethod: chunk].
 	ClassBuilder new setupClass: class
 ! !
 
@@ -607,8 +755,9 @@ Object subclass: #ClassCommentReader
 	instanceVariableNames: 'class'
 	package: 'Kernel-Classes'!
 !ClassCommentReader commentStamp!
-ClassCommentReader represents a mechanism for retrieving class comments stored on a file.
-See `ClassCategoryReader` too.!
+I provide a mechanism for retrieving class comments stored on a file.
+
+See also `ClassCategoryReader`.!
 
 !ClassCommentReader methodsFor: 'accessing'!
 
@@ -622,7 +771,7 @@ scanFrom: aChunkParser
 	| chunk |
 	chunk := aChunkParser nextChunk.
 	chunk isEmpty ifFalse: [
-	    self setComment: chunk].
+		self setComment: chunk].
 ! !
 
 !ClassCommentReader methodsFor: 'initialization'!
@@ -634,12 +783,16 @@ initialize
 !ClassCommentReader methodsFor: 'private'!
 
 setComment: aString
-    class comment: aString
+	class comment: aString
 ! !
 
 Object subclass: #ClassSorterNode
 	instanceVariableNames: 'theClass level nodes'
 	package: 'Kernel-Classes'!
+!ClassSorterNode commentStamp!
+I provide an algorithm for sorting classes alphabetically.
+
+See [Issue #143](https://github.com/amber-smalltalk/amber/issues/143) on GitHub.!
 
 !ClassSorterNode methodsFor: 'accessing'!
 

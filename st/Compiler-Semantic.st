@@ -1,6 +1,6 @@
-Smalltalk current createPackage: 'Compiler-Semantic' properties: #{}!
+Smalltalk current createPackage: 'Compiler-Semantic'!
 Object subclass: #LexicalScope
-	instanceVariableNames: 'node instruction temps args outerScope'
+	instanceVariableNames: 'node instruction temps args outerScope blockIndex'
 	package: 'Compiler-Semantic'!
 !LexicalScope commentStamp!
 I represent a lexical scope where variable names are associated with ScopeVars
@@ -24,9 +24,17 @@ args
 !
 
 bindingFor: aStringOrNode
-	^ self pseudoVars at: aStringOrNode value ifAbsent: [ 
+	^ self pseudoVars at: aStringOrNode value ifAbsent: [
 		self args at: aStringOrNode value ifAbsent: [
 			self temps at: aStringOrNode value ifAbsent: [ nil ]]]
+!
+
+blockIndex
+	^ blockIndex ifNil: [ 0 ]
+!
+
+blockIndex: anInteger 
+	blockIndex := anInteger
 !
 
 instruction
@@ -41,7 +49,7 @@ lookupVariable: aNode
 	| lookup |
 	lookup := (self bindingFor: aNode).
 	lookup ifNil: [
-		lookup := self outerScope ifNotNil: [ 
+		lookup := self outerScope ifNotNil: [
 			(self outerScope lookupVariable: aNode) ]].
 	^ lookup
 !
@@ -76,7 +84,7 @@ pseudoVars
 scopeLevel
 	self outerScope ifNil: [ ^ 1 ].
 	self isInlined ifTrue: [ ^ self outerScope scopeLevel ].
-    
+	
 	^ self outerScope scopeLevel + 1
 !
 
@@ -108,7 +116,7 @@ isBlockScope
 
 isInlined
 	^ self instruction notNil and: [
-      	self instruction isInlined ]
+		self instruction isInlined ]
 !
 
 isMethodScope
@@ -203,7 +211,7 @@ Object subclass: #ScopeVar
 	instanceVariableNames: 'scope name'
 	package: 'Compiler-Semantic'!
 !ScopeVar commentStamp!
-I am an entry in a LexicalScope that gets associated with variable nodes of the same name.  
+I am an entry in a LexicalScope that gets associated with variable nodes of the same name.
 There are 4 different subclasses of vars: temp vars, local vars, args, and unknown/global vars.!
 
 !ScopeVar methodsFor: 'accessing'!
@@ -264,7 +272,7 @@ validateAssignment
 !ScopeVar class methodsFor: 'instance creation'!
 
 on: aString
-	^ self new 
+	^ self new
 		name: aString;
 		yourself
 ! !
@@ -306,7 +314,11 @@ I am an class reference variable!
 !ClassRefVar methodsFor: 'accessing'!
 
 alias
-	^ '(smalltalk.', self name, ' || ', self name, ')'
+	"Fixes issue #190.
+	A function is created in the method definition, answering the class or nil.
+	See JSStream >> #nextPutClassRefFunction:"
+	
+	^ '$', self name, '()'
 ! !
 
 !ClassRefVar methodsFor: 'testing'!
@@ -376,7 +388,7 @@ isUnknownVar
 ! !
 
 NodeVisitor subclass: #SemanticAnalyzer
-	instanceVariableNames: 'currentScope theClass classReferences messageSends superSends'
+	instanceVariableNames: 'currentScope blockIndex theClass classReferences messageSends superSends'
 	package: 'Compiler-Semantic'!
 !SemanticAnalyzer commentStamp!
 I semantically analyze the abstract syntax tree and annotate it with informations such as non local returns and variable scopes.!
@@ -413,18 +425,19 @@ errorShadowingVariable: aString
 
 errorUnknownVariable: aNode
 	"Throw an error if the variable is undeclared in the global JS scope (i.e. window).
-    We allow four variable names in addition: `jQuery`, `window`, `process` and `global` 
-    for nodejs and browser environments. 
-    
-    This is only to make sure compilation works on both browser-based and nodejs environments.
-    The ideal solution would be to use a pragma instead"
+	We allow all variables listed by Smalltalk>>#globalJsVariables.
+	This list includes: `jQuery`, `window`, `document`,  `process` and `global`
+	for nodejs and browser environments.
+	
+	This is only to make sure compilation works on both browser-based and nodejs environments.
+	The ideal solution would be to use a pragma instead"
 
 	| identifier |
-    identifier := aNode value.
-    
-	((#('jQuery' 'window' 'document' 'process' 'global') includes: identifier) not 
-        and: [ self isVariableGloballyUndefined: identifier ]) 
-        	ifTrue: [
+	identifier := aNode value.
+	
+	((Smalltalk current globalJsVariables includes: identifier) not
+		and: [ self isVariableGloballyUndefined: identifier ])
+			ifTrue: [
 				UnknownVariableError new
 					variableName: aNode value;
 					signal ]
@@ -443,9 +456,18 @@ newMethodScope
 !
 
 newScopeOfClass: aLexicalScopeClass
-	^ aLexicalScopeClass new 
+	^ aLexicalScopeClass new
 		outerScope: currentScope;
 		yourself
+! !
+
+!SemanticAnalyzer methodsFor: 'private'!
+
+nextBlockIndex
+	blockIndex ifNil: [ blockIndex := 0 ].
+	
+	blockIndex := blockIndex + 1.
+	^ blockIndex
 ! !
 
 !SemanticAnalyzer methodsFor: 'scope'!
@@ -484,8 +506,9 @@ visitBlockNode: aNode
 	self pushScope: self newBlockScope.
 	aNode scope: currentScope.
 	currentScope node: aNode.
-	
-	aNode parameters do: [ :each | 
+	currentScope blockIndex: self nextBlockIndex.
+
+	aNode parameters do: [ :each |
 		self validateVariableScope: each.
 		currentScope addArg: each ].
 
@@ -494,12 +517,9 @@ visitBlockNode: aNode
 !
 
 visitCascadeNode: aNode
-	"Populate the receiver into all children"
-	aNode nodes do: [ :each | 
-		each receiver: aNode receiver ].
 	super visitCascadeNode: aNode.
 	aNode nodes first superSend ifTrue: [
-		aNode nodes do: [ :each | each superSend: true ]]
+		aNode nodes do: [ :each | each superSend: true ] ]
 !
 
 visitClassReferenceNode: aNode
@@ -512,18 +532,18 @@ visitMethodNode: aNode
 	aNode scope: currentScope.
 	currentScope node: aNode.
 
-	self theClass allInstanceVariableNames do: [:each | 
+	self theClass allInstanceVariableNames do: [:each |
 		currentScope addIVar: each ].
-	aNode arguments do: [ :each | 
+	aNode arguments do: [ :each |
 		self validateVariableScope: each.
 		currentScope addArg: each ].
 
 	super visitMethodNode: aNode.
 
-	aNode 
+	aNode
 		classReferences: self classReferences;
 		messageSends: self messageSends keys;
-        superSends: self superSends keys.
+		superSends: self superSends keys.
 	self popScope
 !
 
@@ -537,13 +557,13 @@ visitReturnNode: aNode
 
 visitSendNode: aNode
 
-	aNode receiver value = 'super' 
+	aNode receiver value = 'super'
 		ifTrue: [
 			aNode superSend: true.
 			aNode receiver value: 'self'.
 			self superSends at: aNode selector ifAbsentPut: [ Set new ].
 			(self superSends at: aNode selector) add: aNode ]
-          
+		
 		ifFalse: [ (IRSendInliner inlinedSelectors includes: aNode selector) ifTrue: [
 			aNode shouldBeInlined: true.
 			aNode receiver shouldBeAliased: true ] ].
@@ -557,7 +577,7 @@ visitSendNode: aNode
 !
 
 visitSequenceNode: aNode
-	aNode temps do: [ :each | 
+	aNode temps do: [ :each |
 		self validateVariableScope: each.
 		currentScope addTemp: each ].
 
@@ -568,7 +588,7 @@ visitVariableNode: aNode
 	"Bind a ScopeVar to aNode by doing a lookup in the current scope.
 	If no ScopeVar is found, bind a UnknowVar and throw an error"
 
-	aNode binding: ((currentScope lookupVariable: aNode) ifNil: [ 
+	aNode binding: ((currentScope lookupVariable: aNode) ifNil: [
 		self errorUnknownVariable: aNode.
 		UnknownVar new name: aNode value; yourself ])
 ! !

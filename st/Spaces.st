@@ -1,4 +1,4 @@
-Smalltalk current createPackage: 'Spaces' properties: #{}!
+Smalltalk current createPackage: 'Spaces'!
 Object subclass: #ObjectSpace
 	instanceVariableNames: 'frame'
 	package: 'Spaces'!
@@ -10,13 +10,13 @@ The implementation creates an iframe on the same location as the window, and con
 
 ## Usage example:
 
-    | space |
-    
-    space := ObjectSpace new.
-    space do: [ smalltalk ] "Answers aSmalltalk"
-    (space do: [ smalltalk ]) == smalltalk "Answers false"
-    
-    space release "Remove the object space environment"!
+	| space |
+	
+	space := ObjectSpace new.
+	space do: [ smalltalk ] "Answers aSmalltalk"
+	(space do: [ smalltalk ]) == smalltalk "Answers false"
+	
+	space release "Remove the object space environment"!
 
 !ObjectSpace methodsFor: 'accessing'!
 
@@ -34,7 +34,7 @@ do: aBlock
 !ObjectSpace methodsFor: 'events'!
 
 whenReadyDo: aBlock
-	(window jQuery: frame) 
+	frame asJQuery
 		bind: 'load'
 		do: aBlock
 ! !
@@ -47,8 +47,8 @@ connectTo: aFrame
 !
 
 create
-	(window jQuery: 'body') append: '<iframe style="display: none;"></iframe>'.
-	frame := (window jQuery: 'iframe') get last.
+	'body' asJQuery append: '<iframe style="display: none;"></iframe>'.
+	frame := 'iframe' asJQuery get last.
 	frame contentWindow location: window location
 !
 
@@ -65,7 +65,7 @@ isConnected
 
 destroy
 	frame ifNil: [ ^ self ].
-	(window jQuery: frame) remove.
+	frame asJQuery remove.
 
 	self release
 !
